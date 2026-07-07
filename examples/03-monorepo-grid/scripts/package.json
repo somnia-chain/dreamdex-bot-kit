@@ -1,0 +1,28 @@
+{
+  "name": "@trading/scripts",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "start": "node dist/swap-loop.js",
+    "dev": "tsx src/swap-loop.ts",
+    "contract:buy": "tsx src/contract-order.ts buy",
+    "contract:sell": "tsx src/contract-order.ts sell",
+    "http:buy": "tsx src/http-order.ts buy",
+    "http:sell": "tsx src/http-order.ts sell",
+    "state:show": "tsx src/show-state.ts",
+    "swap:loop": "tsx src/swap-loop.ts",
+    "type-check": "tsc -p tsconfig.json --noEmit"
+  },
+  "dependencies": {
+    "@trading/sdk": "workspace:*",
+    "dotenv": "^16.4.5",
+    "ethers": "^6.13.2"
+  },
+  "devDependencies": {
+    "@types/node": "^22.10.1",
+    "tsx": "^4.19.2",
+    "typescript": "^5.7.2"
+  }
+}

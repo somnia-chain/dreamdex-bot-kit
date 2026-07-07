@@ -1,0 +1,26 @@
+# dependencies
+node_modules/
+
+# build output
+dist/
+.next/
+*.js.map
+*.d.ts.map
+
+# environment files — never commit secrets
+.env
+.env.*
+!.env.example
+
+# runtime data
+data/
+
+# turbo cache
+.turbo/
+
+# editor
+.vscode/
+.idea/
+
+# OS
+.DS_Store

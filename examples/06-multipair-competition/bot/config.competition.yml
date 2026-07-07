@@ -1,0 +1,112 @@
+# DreamDEX competition — WETH vault yield-MM (fill risk accepted, yield + volume)
+# Deploy: cp bot/config.competition.yml bot/config.yml && ./run_forever.sh
+#
+# Before first run: deposit a small WETH balance into the WETH:USDso vault (UI or API)
+# so the book is two-sided from day one — one-sided book earns zero yield per docs.
+#
+# Effective Volume = Raw Volume × (1 + PnL%)
+rpc_url: "https://api.infra.mainnet.somnia.network/"
+chain_id: 5031
+market_data_base: "https://api.dreamdex.io"
+private_key_env: "PRIVATE_KEY"
+
+strategy: competition
+
+# Trade WETH only; value full wallet for PnL / monitor
+portfolio_symbols:
+  - SOMI:USDso
+  - WETH:USDso
+  - WBTC:USDso
+watch_symbols:
+  - WETH:USDso
+trade_pairs:
+  - WETH:USDso
+mm_pairs:
+  - WETH:USDso
+mm_enabled: true
+
+# Vault-funded resting postOnly — two-sided $45 quotes (~$140 portfolio)
+vault_enabled: true
+vault_market: WETH:USDso
+vault_deposit_usdso: 100
+vault_auto_topup: true
+vault_topup_interval_sec: 45
+vault_target_usdso: 48
+vault_target_weth: 0.029
+vault_wallet_reserve_usdso: 3
+vault_min_deposit_usdso: 2
+funding_source_maker: vault
+funding_source_taker: wallet
+
+# MM quotes even on 0bps WETH touch book
+mm_min_spread_bps: 0
+
+# Two-sided yield MM: $45 bid + $45 ask (faster requote, no taker)
+always_two_sided_mm: true
+maker_size_usdso: 45
+maker_min_size_usdso: 22
+maker_requote_ticks: 1
+fill_rebalance_boost: 1.0
+maker_mode: touch
+maker_improve_ticks: 0
+order_type_maker: postOnly
+target_inventory_ratio: 0.50
+inventory_skew_bps: 5000
+maker_size_fraction: 0.45
+
+# WETH book is often 1bps — must quote at touch for proximity yield
+min_profitable_spread_bps: 1
+min_spread_floor_bps: 1
+pair_min_spread_bps:
+  WETH:USDso: 1
+min_pair_score: 8
+max_spread_bps: 80
+
+# No IOC spread-crossing rebalance (was the main PnL leak)
+rebalance_threshold_bps: 10000
+rebalance_size_fraction: 0.25
+order_type_rebalance: immediateOrCancel
+slippage_bps_rebalance: 8
+
+volume_mode: false
+trade_fraction: 0.90
+reserve_quote_fraction: 0.08
+reserve_native_wei: 2000000000000000000
+
+freq_sec: 3
+min_loop_sec: 2
+deadline_sec: 120
+max_orders: null
+
+# Disabled — forced quoting on thin spreads caused adverse selection
+idle_relax_hours: 48
+activity_pulse_hours: 9999
+activity_pulse_size_fraction: 0.05
+
+volume_boost_edge_bps: 99
+volume_boost_size_fraction: 0.17
+stablecoin_symbols: []
+
+reaper_enabled: true
+reaper_max_age_sec: 300
+reaper_interval_sec: 60
+
+price_ref_enabled: true
+
+priority_fee_gwei: 2
+fallback_gas: 2000000
+native_base_buy_gas: 5000000
+
+use_websocket: true
+ws_url: "wss://api.dreamdex.io/v0/ws/public"
+dry_run: false
+watch_opportunities: true
+
+max_drawdown_pct: 0.10
+drawdown_stop: false
+
+# Competition PnL baseline (may be above current wallet — do not auto-stop)
+competition_initial_usdso: 150
+
+metrics_path: metrics.json
+state_path: bot_state.json

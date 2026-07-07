@@ -1,0 +1,37 @@
+[project]
+name = "dreamdex-bot"
+version = "0.1.0"
+description = "Trading + QA bot for the DreamDEX alpha competition on Somnia"
+requires-python = ">=3.11"
+authors = [{ name = "Chidera" }]
+dependencies = [
+    "web3>=7.0",
+    "eth-account>=0.13",
+    "httpx>=0.27",
+    "websockets>=12.0",
+    "certifi>=2024.0",
+    "siwe>=4.0",
+    "pydantic>=2.0",
+    "pydantic-settings>=2.0",
+    "structlog>=24.0",
+    "pyyaml>=6.0",
+    "rich>=13.0",
+]
+
+[project.optional-dependencies]
+dev = ["pytest>=8.0", "pytest-asyncio>=0.23", "ruff>=0.6", "mypy>=1.10"]
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/dreamdex_bot"]
+
+[tool.ruff]
+line-length = 100
+target-version = "py311"
+
+[tool.pytest.ini_options]
+asyncio_mode = "auto"
+testpaths = ["tests"]

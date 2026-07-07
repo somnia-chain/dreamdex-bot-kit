@@ -1,0 +1,78 @@
+# Testnet configuration for dreamdex-bot.
+# Note: USDC.e:USDso is NOT deployed on testnet — volume mill uses SOMI:USDso here.
+# Override at runtime via env vars in .env.
+
+bot:
+  starting_capital_usd: 50.00
+  markets_to_watch:
+    - SOMI:USDso
+    - WETH:USDso
+    - WBTC:USDso
+
+bootstrap:
+  enabled: true
+  candidate_markets:
+    - SOMI:USDso
+    - WETH:USDso
+    - WBTC:USDso
+  min_quote_balance_usd: "5.00"
+  target_quote_to_spend_usd: "10.00"
+  max_quote_fraction: "0.35"
+  reserve_quote_usd: "2.00"
+  min_base_value_usd: "1.00"
+  min_ask_depth_usd: "5.00"
+  max_spread_bps: "75.0"
+
+strategies:
+  volume_mill:
+    enabled: true
+    markets:
+      - SOMI:USDso
+      - WETH:USDso
+      - WBTC:USDso
+    cycle_interval_sec: 4.0  # slower than mainnet — testnet liquidity is thin
+    size_per_cycle_usd: 5.00 # smaller cycles on a volatile pair
+    size_per_cycle_usd_by_market:
+      SOMI:USDso: "2.00"
+      WETH:USDso: "4.00"
+      WBTC:USDso: "12.00"
+    max_inventory_imbalance_usd: 5.00
+    max_spread_bps: 100.0
+    min_side_depth_usd: 1.00
+    depth_usage_fraction: 0.50
+    ioc_cross_bps: 5.0
+    native_base_reserve_by_market:
+      SOMI:USDso: "10.00"
+
+  yield_maker:
+    enabled: false
+    disabled_reason: "Disabled during VolumeMill soak unless explicitly testing maker behavior."
+    target_base_value_usd: 12.50
+    quote_size_usd: 2.00
+    min_half_spread_bps: 25
+    gamma: 0.5            # A-S risk aversion (higher = more inventory-averse)
+    k_vol: 2.0            # vol-spread multiplier
+    requote_threshold_bps: 5
+    requote_min_interval_sec: 3.0
+    vol_window: 60
+    native_base_reserve_by_market:
+      SOMI:USDso: "10.00"
+
+risk:
+  realized_loss:
+    max_loss_usd: 12.50    # Kill switch at -25% closed P&L
+  inventory_drift:
+    market: SOMI:USDso
+    max_drift_usd: 10.00
+    target_base_usd: 12.50
+    strategy: yield_maker
+    native_base_reserve_by_market:
+      SOMI:USDso: "10.00"
+  failed_tx_streak:
+    max_streak: 5
+  ws_staleness:
+    max_silence_sec: 60.0
+  open_orders_cap:
+    max_open: 8
+  max_drawdown:
+    max_drawdown_pct: 30.0  # Total drawdown including unrealized

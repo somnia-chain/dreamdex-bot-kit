@@ -1,0 +1,22 @@
+.env
+.env.local
+*.key
+private-key*
+logs/
+__pycache__/
+*.pyc
+*.pyo
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.venv/
+venv/
+dist/
+build/
+*.egg-info/
+.coverage
+.DS_Store
+
+# Working notes that may contain sensitive context
+notes/private/
+reports/private/

@@ -1,0 +1,58 @@
+# Capital preservation — no new quotes, monitor PnL only, cancel stale orders.
+# Deploy: cp bot/config.preserve.yml bot/config.yml && restart bot
+#
+# Honest expectation: ~$0 new volume; goal is stop erosion, not competition rank.
+rpc_url: "https://api.infra.mainnet.somnia.network/"
+chain_id: 5031
+market_data_base: "https://api.dreamdex.io"
+private_key_env: "PRIVATE_KEY"
+
+strategy: competition
+preserve_mode: true
+
+portfolio_symbols:
+  - SOMI:USDso
+  - WETH:USDso
+  - WBTC:USDso
+watch_symbols:
+  - WETH:USDso
+trade_pairs: []
+mm_pairs: []
+mm_enabled: false
+
+vault_enabled: true
+vault_market: WETH:USDso
+vault_auto_topup: false
+funding_source_maker: vault
+funding_source_taker: wallet
+
+watch_opportunities: false
+volume_harvest_enabled: false
+
+freq_sec: 30
+min_loop_sec: 30
+
+reaper_enabled: true
+reaper_max_age_sec: 30
+reaper_interval_sec: 30
+
+price_ref_enabled: true
+
+use_websocket: true
+ws_url: "wss://api.dreamdex.io/v0/ws/public"
+dry_run: false
+
+# Stop if portfolio drops another 5% from new baseline
+max_drawdown_pct: 0.05
+drawdown_stop: true
+
+# Fresh baseline (~current portfolio); old $150 competition line reset
+competition_initial_usdso: 142
+
+metrics_path: metrics.json
+state_path: bot_state.json
+
+priority_fee_gwei: 2
+fallback_gas: 2000000
+native_base_buy_gas: 5000000
+reserve_native_wei: 2000000000000000000

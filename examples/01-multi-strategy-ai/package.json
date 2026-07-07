@@ -1,0 +1,16 @@
+{
+  "name": "dreamdex-trading-bot",
+  "version": "1.0.0",
+  "type": "module",
+  "description": "AI Autonomous Trading Bot for DreamDEX (Somnia Testnet)",
+  "main": "index.js",
+  "scripts": {
+    "start": "node index.js",
+    "dev": "node --watch index.js"
+  },
+  "dependencies": {
+    "@opencode-ai/sdk": "^1.0.0",
+    "dotenv": "^17.4.2",
+    "viem": "^2.51.0"
+  }
+}

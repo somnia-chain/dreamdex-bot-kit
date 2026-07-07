@@ -1,0 +1,37 @@
+# macOS
+.DS_Store
+.AppleDouble
+.LSOverride
+
+# Editors
+.vscode/
+.idea/
+*.swp
+
+# Logs
+*.log
+logs/
+
+# Secrets — never commit
+.env
+.env.*
+!.env.example
+*.key
+*.pem
+
+# Python (also covered in backend/.gitignore)
+__pycache__/
+*.pyc
+.venv/
+venv/
+
+# Arduino build artifacts
+build/
+*.bin
+*.elf
+
+# Playwright MCP transient artifacts
+.playwright-mcp/
+
+# Local auth screenshots
+dreamdex-docs-auth.png

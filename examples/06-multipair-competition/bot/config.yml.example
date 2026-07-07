@@ -1,0 +1,59 @@
+# Competition test profiles:
+#   competition mode:  cp bot/config.competition.yml bot/config.yml
+#   Phase 1 (dry-run): dry_run: true  — watch logs, no txs
+#   Phase 2 (Day 1):   dry_run: false — live maker + volume
+rpc_url: "https://api.infra.mainnet.somnia.network/"
+chain_id: 5031
+market_data_base: "https://api.dreamdex.io"
+private_key_env: "PRIVATE_KEY"
+
+# Scan all USDso pairs continuously — act on every profitable market each tick
+strategy: multi_hybrid
+watch_symbols:
+  - SOMI:USDso
+  - WETH:USDso
+  - WBTC:USDso
+
+# --- Profit-first maker ---
+maker_mode: touch
+maker_improve_ticks: 0
+min_profitable_spread_bps: 20
+min_pair_score: 20
+maker_size_fraction: 0.15
+order_type_maker: postOnly
+inventory_skew_bps: 300
+target_inventory_ratio: 0.5
+stablecoin_symbols: []
+stablecoin_target_price: "1.0"
+
+# --- Rebalance (per pair, only when badly skewed) ---
+rebalance_threshold_bps: 800
+rebalance_size_fraction: 0.5
+order_type_rebalance: immediateOrCancel
+slippage_bps_rebalance: 12
+max_spread_bps: 80
+
+volume_mode: false
+trade_fraction: 0.90
+reserve_quote_fraction: 0.05
+reserve_native_wei: 50000000000000000
+
+freq_sec: 12
+min_loop_sec: 8
+deadline_sec: 120
+max_orders: null
+
+priority_fee_gwei: 2
+fallback_gas: 2000000
+native_base_buy_gas: 5000000
+
+use_websocket: true
+ws_url: "wss://api.dreamdex.io/v0/ws/public"
+dry_run: false
+# Log market opportunities even when this wallet cannot trade (defaults on in dry_run)
+watch_opportunities: false
+
+max_drawdown_pct: 0.10
+
+metrics_path: metrics.json
+state_path: bot_state.json

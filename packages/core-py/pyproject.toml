@@ -1,0 +1,17 @@
+[project]
+name = "dreamdex-core"
+version = "0.1.0"
+description = "Shared DreamDEX client (Python): config, gotcha guards, contract reads, nonce manager, order execution."
+requires-python = ">=3.10"
+dependencies = [
+    "web3>=6.15,<8",
+    "eth-account>=0.11",
+    "python-dotenv>=1.0",
+]
+
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools.packages.find]
+include = ["dreamdex_core*"]

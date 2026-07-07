@@ -1,0 +1,6 @@
+PyYAML>=6.0
+requests>=2.31
+web3>=6.20
+eth-account>=0.11
+python-dotenv>=1.0
+websockets>=12.0

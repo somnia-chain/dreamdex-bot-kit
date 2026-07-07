@@ -1,0 +1,1544 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>dreamDEX Agent</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    fontFamily: {
+                        sans: ['system-ui', '-apple-system', 'BlinkMacSystemFont', '"Segoe UI"', 'Roboto', 'Oxygen', 'Ubuntu', 'Cantarell', '"Open Sans"', '"Helvetica Neue"', 'sans-serif'],
+                        mono: ['ui-monospace', 'Menlo', 'Monaco', 'Consolas', '"Liberation Mono"', '"Courier New"', 'monospace'],
+                    },
+                    colors: {
+                        bg: '#0a0a0a',
+                        surface: '#111111',
+                        border: '#2a2a2a',
+                        textMain: '#e5e5e5',
+                        textMuted: '#888888',
+                        danger: '#cc4a4a',
+                        success: '#4a9c59',
+                        warning: '#c99a34',
+                    }
+                }
+            }
+        }
+    </script>
+    <style>
+        /*  dreamDEX Agent — design system
+         *  All-dark trader/terminal aesthetic. Every utility class the HTML
+         *  references is defined here so behaviour does not depend on the
+         *  Tailwind CDN actually emitting custom-config classes (which it
+         *  does NOT do — config inside the inline script tag is ignored).
+         */
+        :root {
+            --c-bg:           #0a0a0e;   /* page surround (everywhere) */
+            --c-surface:      #14141c;   /* panel body */
+            --c-surface-2:    #1c1c28;   /* nested rows, inputs */
+            --c-surface-3:    #08080c;   /* deeper recess (activity log) */
+            --c-border:       #2a2a38;   /* normal divider */
+            --c-border-strong:#44445a;   /* hover/focus */
+            --c-text:         #ececf2;   /* primary text */
+            --c-text-dim:     #b8b8c4;   /* labels, secondary */
+            --c-muted:        #7a7a88;   /* tertiary */
+            --c-faint:        #4a4a58;   /* placeholder, disabled */
+            --c-accent:       #6b9eff;   /* primary action / focus */
+            --c-success:      #4ec27c;
+            --c-danger:       #f25e5e;
+            --c-warning:      #f0b842;
+        }
+
+        /* ── base ───────────────────────────────────────── */
+        html, body { background: var(--c-bg); color: var(--c-text); }
+        body {
+            font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+            -webkit-font-smoothing: antialiased;
+        }
+        a { color: var(--c-accent); }
+        code { color: var(--c-text); background: var(--c-surface-2); padding: 0 0.3em; }
+
+        /* ── colour utility shims (so HTML using tailwind-style classes works) ── */
+        .text-textMain { color: var(--c-text)   !important; }
+        .text-textMuted{ color: var(--c-muted)  !important; }
+        .text-success  { color: var(--c-success)!important; }
+        .text-danger   { color: var(--c-danger) !important; }
+        .text-warning  { color: var(--c-warning)!important; }
+        .text-accent   { color: var(--c-accent) !important; }
+
+        .bg-bg         { background-color: var(--c-bg)        !important; }
+        .bg-surface    { background-color: var(--c-surface)   !important; }
+        .bg-surface-2  { background-color: var(--c-surface-2) !important; }
+        .bg-border     { background-color: var(--c-border)    !important; }
+        .bg-success    { background-color: var(--c-success)   !important; }
+        .bg-danger     { background-color: var(--c-danger)    !important; }
+        .bg-warning    { background-color: var(--c-warning)   !important; }
+        .bg-textMuted  { background-color: var(--c-muted)     !important; }
+        /* `bg-bg/95` alias used by sticky header */
+        .bg-bg\/95     { background-color: color-mix(in srgb, var(--c-bg) 95%, transparent) !important; }
+
+        .border-border { border-color: var(--c-border)  !important; }
+        .border-warning{ border-color: var(--c-warning) !important; }
+        .border-danger { border-color: var(--c-danger)  !important; }
+        .border-success{ border-color: var(--c-success) !important; }
+
+        .divide-border > * + * { border-color: var(--c-border) !important; }
+
+        /* ── panels ─────────────────────────────────────── */
+        .panel {
+            border: 1px solid var(--c-border);
+            background: var(--c-surface);
+            color: var(--c-text);
+        }
+        .panel-header {
+            border-bottom: 1px solid var(--c-border);
+            padding: 0.55rem 0.85rem;
+            font-weight: 600;
+            font-size: 0.78rem;
+            text-transform: uppercase;
+            letter-spacing: 0.06em;
+            color: var(--c-muted);
+        }
+        .panel-body { padding: 1rem; color: var(--c-text); }
+
+        /* ── inputs ─────────────────────────────────────── */
+        .input-base {
+            background: var(--c-surface-2);
+            border: 1px solid var(--c-border);
+            color: var(--c-text);
+            padding: 0.3rem 0.55rem;
+            outline: none;
+            font-family: ui-monospace, Menlo, Monaco, Consolas, monospace;
+            font-size: 0.875rem;
+            transition: border-color 0.12s;
+        }
+        .input-base:focus { border-color: var(--c-accent); }
+        .input-base::placeholder { color: var(--c-faint); }
+
+        /* ── buttons: one canonical state machine ───────── */
+        .btn-base {
+            border: 1px solid var(--c-border);
+            background: var(--c-surface-2);
+            color: var(--c-text-dim);
+            padding: 0.3rem 0.85rem;
+            cursor: pointer;
+            font-size: 0.875rem;
+            font-family: inherit;
+            transition: background 0.12s, color 0.12s, border-color 0.12s;
+        }
+        .btn-base:hover:not(:disabled):not(.btn-active) {
+            background: var(--c-border);
+            color: var(--c-text);
+            border-color: var(--c-border-strong);
+        }
+        .btn-base:disabled { opacity: 0.45; cursor: not-allowed; }
+        /* The single selected button in a group. High contrast inverse. */
+        .btn-active {
+            background: var(--c-accent) !important;
+            color: #0b0e14 !important;
+            border-color: var(--c-accent) !important;
+            font-weight: 700;
+        }
+        /* Modal action buttons. */
+        .btn-primary { background: var(--c-accent)  !important; color: #0b0e14 !important; border-color: var(--c-accent)  !important; font-weight: 700; }
+        .btn-warning { background: var(--c-warning) !important; color: #0b0e14 !important; border-color: var(--c-warning) !important; font-weight: 700; }
+        .btn-danger  { background: var(--c-danger)  !important; color: #ffffff !important; border-color: var(--c-danger)  !important; font-weight: 700; }
+
+        /* ── tables ─────────────────────────────────────── */
+        .table-row { border-bottom: 1px solid var(--c-border); }
+        .table-row:last-child { border-bottom: none; }
+
+        /* ── modals ─────────────────────────────────────── */
+        .modal-overlay {
+            background-color: rgba(8, 8, 12, 0.82);
+            backdrop-filter: blur(4px);
+        }
+        .modal-card {
+            background: var(--c-surface);
+            border: 1px solid var(--c-border);
+            color: var(--c-text);
+        }
+        .modal-card.warning { border-color: var(--c-warning); }
+        .modal-card.danger  { border-color: var(--c-danger); }
+
+        /* ── scrollbars ─────────────────────────────────── */
+        ::-webkit-scrollbar       { width: 8px; height: 8px; }
+        ::-webkit-scrollbar-track { background: var(--c-surface); }
+        ::-webkit-scrollbar-thumb { background: var(--c-border); border-radius: 4px; }
+        ::-webkit-scrollbar-thumb:hover { background: var(--c-border-strong); }
+
+        /* ── misc ───────────────────────────────────────── */
+        .hidden { display: none !important; }
+        /* divide-y utility shim (Tailwind class on prices tbody) */
+        .divide-y > * + * { border-top: 1px solid var(--c-border); }
+        .divide-y.divide-border > * + * { border-top-color: var(--c-border); }
+    </style>
+</head>
+<body class="min-h-screen flex flex-col relative text-sm">
+
+    <!-- Sticky Header -->
+    <header class="sticky top-0 z-10 border-b border-border bg-bg/95 backdrop-blur-sm px-4 py-3 flex justify-between items-center">
+        <div class="flex items-center gap-3">
+            <h1 class="font-mono font-bold tracking-tight">dreamDEX Agent</h1>
+            <span id="header-leaderboard" class="text-textMuted text-xs font-mono hidden sm:inline"></span>
+        </div>
+        <div class="flex items-center gap-4">
+            <button id="btn-api-key" class="text-textMuted hover:text-textMain transition-colors flex items-center gap-1" title="API Key Settings">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"></rect><path d="M7 11V7a5 5 0 0 1 10 0v4"></path></svg>
+            </button>
+            <div class="flex items-center gap-2 group relative cursor-help">
+                <div id="status-dot" class="w-2.5 h-2.5 rounded-full bg-textMuted"></div>
+                <span id="status-text" class="text-textMuted font-mono text-xs">CONNECTING</span>
+                
+                <!-- Tooltip for error -->
+                <div id="status-tooltip" class="absolute right-0 top-full mt-2 w-max max-w-xs p-2 bg-surface border border-border text-xs hidden group-hover:block z-50">
+                    No active connection.
+                </div>
+            </div>
+        </div>
+    </header>
+
+    <main class="flex-1 p-4 w-full max-w-5xl mx-auto flex flex-col gap-4">
+        
+        <!-- Top Row: Prices & Agent Control -->
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+            
+            <!-- Prices Table -->
+            <section class="panel flex flex-col">
+                <div class="panel-header flex justify-between items-center">
+                    <span>Market Data</span>
+                    <span id="stale-prices" class="text-danger text-xs hidden">STALE</span>
+                </div>
+                <div class="p-0 overflow-x-auto">
+                    <table class="w-full text-left font-mono text-xs whitespace-nowrap">
+                        <thead class="text-textMuted border-b border-border bg-surface">
+                            <tr>
+                                <th class="py-2 px-3 font-normal">PAIR</th>
+                                <th class="py-2 px-3 font-normal text-right">MID</th>
+                                <th class="py-2 px-3 font-normal text-right">BID</th>
+                                <th class="py-2 px-3 font-normal text-right">ASK</th>
+                                <th class="py-2 px-3 font-normal text-right">SPREAD</th>
+                                <th class="py-2 px-3 font-normal w-16"></th>
+                            </tr>
+                        </thead>
+                        <tbody id="prices-tbody" class="divide-y divide-border">
+                            <tr><td colspan="6" class="py-4 text-center text-textMuted">Loading prices...</td></tr>
+                        </tbody>
+                    </table>
+                </div>
+            </section>
+
+            <!-- Agent Control -->
+            <section class="panel flex flex-col">
+                <div class="panel-header flex justify-between items-center">
+                    <span>Agent Control — Main</span>
+                    <span class="text-textMuted normal-case" style="text-transform:none; font-size:11px">orchestrator · $7–$15</span>
+                </div>
+                <div class="panel-body flex-1 flex flex-col justify-center gap-4 relative" id="agent-control-body">
+                    
+                    <!-- BAL LOW Banner (Hidden by default) -->
+                    <div id="agent-bal-low" class="hidden absolute inset-0 bg-surface z-10 flex flex-col items-center justify-center p-4 text-center border border-danger/50">
+                        <div class="text-danger font-bold mb-2">BAL LOW • CAPITAL FLOOR HIT</div>
+                        <div id="bal-low-details" class="font-mono text-sm text-textMuted mb-2">
+                            Wallet USDso: $-- <br>
+                            Need $-- more to reach the $35 floor
+                        </div>
+                        <div class="text-xs text-textMuted">Top up the wallet and the agent will resume on its next tick.</div>
+                    </div>
+
+                    <!-- Main Controls -->
+                    <div class="flex flex-wrap items-center justify-between gap-4">
+                        <button id="btn-toggle-agent" class="btn-base font-bold py-2 px-6 flex-shrink-0 min-w-[100px]" disabled>
+                            WAIT
+                        </button>
+
+                        <div class="flex flex-col gap-1">
+                            <span class="text-xs text-textMuted uppercase" title="Loop interval — how often the brain decides.">Pace</span>
+                            <div class="flex border border-border" id="speed-group">
+                                <button class="btn-base border-none px-2 py-1 text-xs" data-speed="slow" title="600s loop — very conservative">SLW</button>
+                                <button class="btn-base border-none border-l border-border px-2 py-1 text-xs" data-speed="normal" title="300s loop">NRM</button>
+                                <button class="btn-base border-none border-l border-border px-2 py-1 text-xs" data-speed="fast" title="120s loop">FST</button>
+                                <button class="btn-base border-none border-l border-border px-2 py-1 text-xs" data-speed="max" title="45s loop — aggressive">MAX</button>
+                            </div>
+                        </div>
+
+                        <div class="flex flex-col gap-1">
+                            <span class="text-xs text-textMuted uppercase" title="GRIND and PROFIT are manual (sticky). AUTO follows leaderboard rank: profit at rank ≤ 2, grind otherwise.">Mode</span>
+                            <div class="flex border border-border" id="mode-group">
+                                <button class="btn-base border-none px-2 py-1 text-xs" data-mode="grind" title="Manual: mechanical round-trips every cycle. Volume up.">GRIND</button>
+                                <button class="btn-base border-none border-l border-border px-2 py-1 text-xs" data-mode="profit" title="Manual: hold unless momentum favours a trade.">PROFIT</button>
+                                <button class="btn-base border-none border-l border-border px-2 py-1 text-xs" data-mode="auto" title="Auto: flip between GRIND and PROFIT based on rank.">AUTO</button>
+                            </div>
+                        </div>
+
+                        <div class="flex flex-col gap-1">
+                            <span class="text-xs text-textMuted uppercase" title="Auto-pause once N successful orders sent. 0 / blank = unlimited.">Max Orders</span>
+                            <div class="flex">
+                                <input type="number" id="input-max-orders" class="input-base w-16 text-right border-r-0" min="0" placeholder="∞">
+                                <button id="btn-save-max-orders" class="btn-base text-xs">SET</button>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Status Line / Progress -->
+                    <div class="mt-auto pt-4 border-t border-border">
+                        <div class="flex justify-between items-end mb-1">
+                            <span class="text-xs text-textMuted uppercase">Main — current state</span>
+                            <span id="agent-progress" class="font-mono text-xs text-textMuted"></span>
+                        </div>
+                        <div id="agent-status-line" class="font-mono text-sm truncate" title="Awaiting state...">
+                            Awaiting state...
+                        </div>
+                    </div>
+
+                    <!-- Sub-agent (Micro) status — read-only -->
+                    <div class="pt-3 mt-2 border-t border-border" id="micro-block">
+                        <div class="flex justify-between items-end mb-1">
+                            <span class="text-xs text-textMuted uppercase" title="Brainless sub-agent. Decisions come from the main orchestrator's LLM call. Always profit-mode, $2-$5 trades.">Micro — sub-agent</span>
+                            <span id="micro-progress" class="font-mono text-xs text-textMuted">— · profit · $2–$5</span>
+                        </div>
+                        <div id="micro-status-line" class="font-mono text-sm truncate" style="color: var(--c-muted)">
+                            Awaiting first orchestrated decision…
+                        </div>
+                    </div>
+
+                </div>
+            </section>
+        </div>
+
+        <!-- Burst Loop Status — separate card so the BAL-LOW overlay on Agent
+             Control can't hide it (the burst doesn't care about capital floor). -->
+        <section class="panel" id="burst-card">
+            <div class="panel-header flex justify-between items-center">
+                <span>Burst loops</span>
+                <span class="text-textMuted text-xs normal-case" style="text-transform:none;">two independent producers driving /manual + direct-RPC</span>
+            </div>
+            <div class="panel-body py-3">
+                <!-- REST burst (Flask /manual path) -->
+                <div id="burst-block">
+                    <div class="flex justify-between items-end mb-1">
+                        <span class="text-xs text-textMuted uppercase">REST — /manual</span>
+                        <span id="burst-progress" class="font-mono text-xs text-textMuted">— · — · —</span>
+                    </div>
+                    <div id="burst-status-line" class="font-mono text-sm truncate" style="color: var(--c-muted)">
+                        Awaiting first burst fill…
+                    </div>
+                    <div class="text-xs text-textMuted mt-1">
+                        Hybrid: REST builds tx, RPC broadcasts. Auto-restarts via cron every 5 min. Stable fallback.
+                    </div>
+                </div>
+
+                <!-- Direct-RPC burst (bypasses REST) -->
+                <div id="direct-burst-block" class="pt-3 mt-3 border-t border-border">
+                    <div class="flex justify-between items-end mb-1">
+                        <span class="text-xs text-textMuted uppercase">Direct — RPC only</span>
+                        <span id="direct-burst-progress" class="font-mono text-xs text-textMuted">— · — · —</span>
+                    </div>
+                    <div id="direct-burst-status-line" class="font-mono text-sm truncate" style="color: var(--c-muted)">
+                        Not running.
+                    </div>
+                    <div class="text-xs text-textMuted mt-1">
+                        Builds + signs + broadcasts entirely in-process. ~5× faster than REST when active.
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- Portfolio Card -->
+        <section class="panel">
+            <div class="panel-header flex justify-between">
+                <span>Portfolio &amp; Liquidity Breakdown</span>
+                <span id="portfolio-stale" class="text-danger text-xs hidden border border-danger px-1">STALE DATA</span>
+            </div>
+            <div class="panel-body">
+                <!-- Headline numbers -->
+                <div class="grid grid-cols-1 sm:grid-cols-3 gap-6 mb-5">
+                    <div>
+                        <div class="text-xs text-textMuted uppercase mb-1">Total Value (all buckets)</div>
+                        <div class="font-mono text-2xl" id="port-total">$--.--</div>
+                        <div class="text-xs text-textMuted mt-1">Wallet USDso + Vault USDso + Native SOMI at mid-price.</div>
+                    </div>
+                    <div>
+                        <div class="text-xs text-textMuted uppercase mb-1">Real PnL (all buckets)</div>
+                        <div class="font-mono text-2xl" id="port-pnl">$--.-- (0.0%)</div>
+                        <div class="text-xs text-textMuted mt-1">Internal valuation = wallet USDso + vault + base inventory @ mid + native @ mid − $50. The leaderboard's wallet-only PnL is shown only for rank purposes.</div>
+                    </div>
+                    <div>
+                        <div class="text-xs text-textMuted uppercase mb-1">Volume / Fills</div>
+                        <div class="font-mono text-2xl" id="port-volume">$--.--</div>
+                        <div class="text-xs text-textMuted mt-1" id="port-fills">-- fills / -- txs sent</div>
+                    </div>
+                </div>
+
+                <!-- Liquidity buckets explicit table -->
+                <div class="border border-border bg-[#080808] mb-3">
+                    <div class="grid grid-cols-12 text-xs text-textMuted uppercase border-b border-border">
+                        <div class="col-span-4 py-1.5 px-3">Bucket</div>
+                        <div class="col-span-2 py-1.5 px-3 text-right">Value</div>
+                        <div class="col-span-6 py-1.5 px-3">What this is</div>
+                    </div>
+                    <div class="grid grid-cols-12 text-sm font-mono border-b border-border">
+                        <div class="col-span-4 py-1.5 px-3"><span class="text-success">USDso wallet</span></div>
+                        <div class="col-span-2 py-1.5 px-3 text-right" id="liq-wallet">$--.--</div>
+                        <div class="col-span-6 py-1.5 px-3 text-textMuted text-xs">Sits in your EOA. <b>This is what the leaderboard counts as your PnL.</b> Buys spend from here, sells return here.</div>
+                    </div>
+                    <div class="grid grid-cols-12 text-sm font-mono border-b border-border">
+                        <div class="col-span-4 py-1.5 px-3"><span class="text-warning">USDso pool vaults</span></div>
+                        <div class="col-span-2 py-1.5 px-3 text-right" id="liq-vault">$--.--</div>
+                        <div class="col-span-6 py-1.5 px-3 text-textMuted text-xs">Held inside dreamDEX pools. Not lost — just trapped. The agent auto-drains this back to wallet after every successful sell. You can also drain manually below.</div>
+                    </div>
+                    <div class="grid grid-cols-12 text-sm font-mono border-b border-border">
+                        <div class="col-span-4 py-1.5 px-3"><span class="text-textMain">Native SOMI</span></div>
+                        <div class="col-span-2 py-1.5 px-3 text-right" id="liq-native">--.----</div>
+                        <div class="col-span-6 py-1.5 px-3 text-textMuted text-xs">Gas reserve + occasional trading inventory. Used as msg.value when you sell SOMI directly. Not counted in contest PnL.</div>
+                    </div>
+                    <div class="grid grid-cols-12 text-sm font-mono">
+                        <div class="col-span-4 py-1.5 px-3"><span class="text-textMuted">Manual reserve</span></div>
+                        <div class="col-span-2 py-1.5 px-3 text-right text-textMuted" id="liq-manual">$20.00</div>
+                        <div class="col-span-6 py-1.5 px-3 text-textMuted text-xs">Informational tag only — the original $50 was split into $30 agent / $20 manual. The chain doesn't separate these; the agent considers everything available above the $35 floor.</div>
+                    </div>
+                </div>
+
+                <!-- Stacked Bar (visual proportion) -->
+                <div class="h-4 w-full bg-border flex overflow-hidden group cursor-crosshair relative" id="port-bar">
+                    <!-- Populated by JS -->
+                </div>
+                <div class="h-6 mt-1 flex justify-between items-center text-xs font-mono text-textMuted" id="port-bar-legend">
+                    <!-- Legend text -->
+                </div>
+            </div>
+        </section>
+
+        <!-- Bottom Row: Trade & Vaults -->
+        <div class="grid grid-cols-1 lg:grid-cols-2 gap-4">
+            
+            <!-- Manual Trade -->
+            <section class="panel flex flex-col h-96">
+                <div class="panel-header">Manual Override — Wallet-funded swap</div>
+                <div class="px-3 pt-2 pb-1 text-xs text-textMuted leading-snug">
+                    Fires a single order from your wallet (not the agent loop).
+                    <span class="text-success font-bold">BUY</span> = spend USDso wallet → receive base token to wallet.
+                    <span class="text-danger font-bold">SELL</span> = spend base token from wallet → receive USDso back.
+                    Amount is sized in USDso; we convert at live mid-price.
+                </div>
+                <div class="panel-body border-b border-border flex flex-wrap gap-3 items-end">
+                    <div class="flex flex-col gap-1">
+                        <label class="text-xs text-textMuted uppercase">Pair</label>
+                        <select id="trade-pair" class="input-base w-32 cursor-pointer">
+                            <option value="">Loading...</option>
+                        </select>
+                    </div>
+                    <div class="flex flex-col gap-1">
+                        <label class="text-xs text-textMuted uppercase">Side</label>
+                        <div class="flex border border-border" id="trade-side">
+                            <button class="btn-base border-none px-3 py-1 text-sm btn-active" data-side="buy">BUY</button>
+                            <button class="btn-base border-none border-l border-border px-3 py-1 text-sm" data-side="sell">SELL</button>
+                        </div>
+                    </div>
+                    <div class="flex flex-col gap-1 flex-1 min-w-[120px]">
+                        <label class="text-xs text-textMuted uppercase">Amount (USDso)</label>
+                        <input type="number" id="trade-amount" class="input-base w-full" step="0.10" min="0.01" placeholder="0.00">
+                    </div>
+                    <button id="btn-trade-send" class="btn-base font-bold px-4 py-[0.35rem] h-[34px]">EXECUTE</button>
+                </div>
+
+                <!-- Activity Logs -->
+                <div class="panel-header text-xs flex justify-between items-center">
+                    <span>Activity Log</span>
+                    <span class="text-textMuted normal-case" style="text-transform:none">agent decisions · fills · commands</span>
+                </div>
+                <div class="flex-1 overflow-y-auto p-2 bg-[#050505] font-mono text-xs space-y-1" id="trade-logs">
+                    <!-- Logs go here -->
+                </div>
+            </section>
+
+            <!-- Vault Management (Conditional) -->
+            <section class="panel flex flex-col h-96 transition-opacity" id="vault-card">
+                <div class="panel-header">Vault Ops — Move tokens between wallet ↔ pool vault</div>
+                <div class="px-3 pt-2 pb-1 text-xs text-textMuted leading-snug">
+                    <span class="text-warning font-bold">DEPOSIT</span> = wallet → pool vault (pre-fund vault-style orders; rarely needed since the agent uses wallet funding).
+                    <span class="text-success font-bold">WITHDRAW</span> = pool vault → wallet (pulls stranded vault USDso/base back so it counts on the leaderboard). Use this if something ever gets stuck.
+                </div>
+                <div class="panel-body border-b border-border flex flex-wrap gap-3 items-end">
+                    <div class="flex flex-col gap-1">
+                        <label class="text-xs text-textMuted uppercase">Pool</label>
+                        <select id="vault-pair" class="input-base w-32 cursor-pointer">
+                            <!-- Populated dynamically -->
+                        </select>
+                    </div>
+                    <div class="flex flex-col gap-1">
+                        <label class="text-xs text-textMuted uppercase" title="BASE = the pair's base token (SOMI, WETH, etc). USDso = the quote leg used to buy.">Token side</label>
+                        <div class="flex border border-border" id="vault-token">
+                            <button class="btn-base border-none px-3 py-1 text-sm btn-active" data-token="base" title="Move the base token (e.g. SOMI, WETH)">BASE</button>
+                            <button class="btn-base border-none border-l border-border px-3 py-1 text-sm" data-token="usdso" title="Move USDso (the quote token used to buy)">USDso</button>
+                        </div>
+                    </div>
+                    <div class="flex flex-col gap-1 flex-1 min-w-[100px]">
+                        <label class="text-xs text-textMuted uppercase">Amount</label>
+                        <input type="number" id="vault-amount" class="input-base w-full" step="0.01" min="0.01" placeholder="0.00">
+                    </div>
+                    <div class="flex gap-2 w-full mt-1">
+                        <button id="btn-vault-deposit" class="btn-base flex-1" title="wallet → vault">DEPOSIT →</button>
+                        <button id="btn-vault-withdraw" class="btn-base flex-1" title="vault → wallet">← WITHDRAW</button>
+                    </div>
+                </div>
+                <div class="flex-1 p-4 font-mono text-xs text-textMuted overflow-y-auto whitespace-pre" id="vault-balances-view">
+                    <!-- Text representation of vault states -->
+                    Loading vault data...
+                </div>
+            </section>
+        </div>
+
+    </main>
+
+    <footer class="mt-auto border-t border-border p-4 flex flex-col sm:flex-row justify-between items-center text-xs text-textMuted font-mono gap-2">
+        <div class="flex gap-4">
+            <span id="foot-url">https://<TUNNEL_HOST></span>
+            <span id="foot-wallet">EOA: 0xF4c8...905</span>
+        </div>
+        <div class="flex gap-4">
+            <span id="foot-ping">Pings: --/--/--</span>
+            <button id="btn-wipe" class="text-danger hover:underline">Stop & Wipe</button>
+        </div>
+    </footer>
+
+    <!-- Modals -->
+    <!-- Overlay -->
+    <div id="modal-overlay" class="modal-overlay fixed inset-0 z-40 hidden flex items-center justify-center p-4">
+
+        <!-- API Key Modal -->
+        <div id="modal-apikey" class="modal-card w-full max-w-md hidden shadow-2xl">
+            <div class="panel-header">Authentication Required</div>
+            <div class="panel-body">
+                <p class="text-sm mb-4" style="color: var(--c-muted)">Enter the Flask API Key from the backend <code class="px-1 border" style="background: var(--c-bg); color: var(--c-text); border-color: var(--c-border)">.env</code> file to execute mutations.</p>
+                <input type="password" id="input-apikey" class="input-base w-full mb-4" placeholder="X-API-Key...">
+                <div class="flex justify-end gap-2">
+                    <button id="btn-close-apikey" class="btn-base">Cancel</button>
+                    <button id="btn-save-apikey" class="btn-base btn-primary">Save Key</button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Confirm Modal -->
+        <div id="modal-confirm" class="modal-card warning w-full max-w-md hidden shadow-2xl">
+            <div class="panel-header" style="color: var(--c-warning); border-bottom-color: var(--c-warning)">Confirm Action</div>
+            <div class="panel-body">
+                <p id="confirm-msg" class="text-sm mb-4 font-mono py-2 px-3 border" style="background: var(--c-bg); border-color: var(--c-border); color: var(--c-text)"></p>
+                <p class="text-xs mb-4 uppercase" style="color: var(--c-warning)">This action executes on-chain and uses real assets.</p>
+                <div class="flex justify-end gap-2">
+                    <button id="btn-confirm-cancel" class="btn-base">Cancel</button>
+                    <button id="btn-confirm-ok" class="btn-base btn-warning">Confirm Send</button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Wipe Modal -->
+        <div id="modal-wipe" class="modal-card danger w-full max-w-xl hidden shadow-2xl">
+            <div class="panel-header" style="color: var(--c-danger); border-bottom-color: var(--c-danger)">Emergency Stop &amp; Wipe Runbook</div>
+            <div class="panel-body">
+                <p class="text-sm mb-2" style="color: var(--c-muted)">Run these commands manually on the deployment server to force halt and wipe state.</p>
+                <pre class="p-3 text-xs font-mono overflow-x-auto whitespace-pre-wrap mb-4 border" style="background: var(--c-bg); border-color: var(--c-border); color: var(--c-text)">
+ssh user@&lt;SERVER_HOST&gt;
+cd ~/dreamdex-agent
+docker compose down
+docker rmi dreamdex-agent:latest
+shred -u .env
+cd ~ && rm -rf ~/dreamdex-agent</pre>
+                <div class="flex justify-end">
+                    <button id="btn-close-wipe" class="btn-base btn-danger">Close</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // -- Constants & State --
+        // BASE_URL auto-derives from the page origin so this dashboard works
+        // wherever the backend serves it. Override only for local file:// testing.
+        const BASE_URL = (window.location.protocol === 'http:' || window.location.protocol === 'https:')
+            ? window.location.origin
+            : 'https://<TUNNEL_HOST>';
+        const CAPITAL_FLOOR = 35.00;
+        const INITIAL_SEED = 50.00;
+
+        const state = {
+            // First run reads from localStorage; the lock-icon modal lets you paste
+            // your real FLASK_API_KEY (saved to localStorage so it persists).
+            apiKey: localStorage.getItem('DREAMDEX_API_KEY') || '<FLASK_API_KEY>',
+            logs: JSON.parse(localStorage.getItem('DREAMDEX_LOGS') || '[]'),
+            priceHistory: {}, // { "pair": [2100, 2101, ...] } max 24
+            
+            // Latest fetch payloads
+            prices: {},
+            agent: null,
+            portfolio: null,
+            leaderboard: null,
+            
+            // Connection management
+            stale: { prices: false, agent: false, portfolio: false },
+            errors: { prices: 0, agent: 0, portfolio: 0, leaderboard: 0 },
+            lastTick: { prices: null, agent: null, portfolio: null, leaderboard: null },
+            
+            // UI state
+            manualSide: 'buy',
+            vaultToken: 'base',
+            isConfirming: false,
+
+            // For diffing — only log when something actually changes
+            lastDecisionTime: null,
+            lastTxCount: null,
+            lastMode: null,
+            // Same trackers for the micro sub-agent
+            lastMicroDecisionTime: null,
+            lastMicroTxCount: null,
+            microAvailable: false,
+        };
+
+        // Configuration map for token addresses (Simplified for visual reference, real logic relies on backend)
+        const TOKEN_MAP = {
+            'WETH': '0x82aF49447D8a07e3bd95BD0d56f35241523fBab1',
+            'WBTC': '0x2f2a2543B76A4166549F7aaB2e75Bef0aefC5B0f',
+            'SOMI': '0x...',
+            'USDC.e': '0xFF970A61A04b1cA14834A43f5dE4533eBDDB5CC8',
+            'USDso': '0x...' // Mock address for USDso
+        };
+
+        // -- DOM Elements --
+        const el = {
+            // Header
+            statusDot: document.getElementById('status-dot'),
+            statusText: document.getElementById('status-text'),
+            statusTooltip: document.getElementById('status-tooltip'),
+            headerLdb: document.getElementById('header-leaderboard'),
+            
+            // Prices
+            pricesTbody: document.getElementById('prices-tbody'),
+            stalePrices: document.getElementById('stale-prices'),
+            
+            // Agent
+            btnToggle: document.getElementById('btn-toggle-agent'),
+            speedGroup: document.getElementById('speed-group'),
+            inputMaxOrders: document.getElementById('input-max-orders'),
+            btnSaveMaxOrders: document.getElementById('btn-save-max-orders'),
+            statusLine: document.getElementById('agent-status-line'),
+            progress: document.getElementById('agent-progress'),
+            agentBalLow: document.getElementById('agent-bal-low'),
+            balLowDetails: document.getElementById('bal-low-details'),
+            
+            // Portfolio
+            portTotal: document.getElementById('port-total'),
+            portPnl: document.getElementById('port-pnl'),
+            portVolume: document.getElementById('port-volume'),
+            portFills: document.getElementById('port-fills'),
+            liqWallet: document.getElementById('liq-wallet'),
+            liqVault: document.getElementById('liq-vault'),
+            liqNative: document.getElementById('liq-native'),
+            liqManual: document.getElementById('liq-manual'),
+            portBar: document.getElementById('port-bar'),
+            portBarLegend: document.getElementById('port-bar-legend'),
+            portStale: document.getElementById('portfolio-stale'),
+            // Mode buttons
+            modeGroup: document.getElementById('mode-group'),
+            // Micro sub-agent status (read-only)
+            microBlock:     document.getElementById('micro-block'),
+            microProgress:  document.getElementById('micro-progress'),
+            microStatusLine: document.getElementById('micro-status-line'),
+
+            // Burst loop status (read-only)
+            burstBlock:     document.getElementById('burst-block'),
+            burstProgress:  document.getElementById('burst-progress'),
+            burstStatusLine: document.getElementById('burst-status-line'),
+            directBurstBlock: document.getElementById('direct-burst-block'),
+            directBurstProgress: document.getElementById('direct-burst-progress'),
+            directBurstStatusLine: document.getElementById('direct-burst-status-line'),
+            
+            // Manual Trade
+            tradePair: document.getElementById('trade-pair'),
+            tradeSideGroup: document.getElementById('trade-side'),
+            tradeAmount: document.getElementById('trade-amount'),
+            btnTradeSend: document.getElementById('btn-trade-send'),
+            tradeLogs: document.getElementById('trade-logs'),
+            
+            // Vaults
+            vaultCard: document.getElementById('vault-card'),
+            vaultPair: document.getElementById('vault-pair'),
+            vaultTokenGroup: document.getElementById('vault-token'),
+            vaultAmount: document.getElementById('vault-amount'),
+            btnVaultDep: document.getElementById('btn-vault-deposit'),
+            btnVaultWith: document.getElementById('btn-vault-withdraw'),
+            vaultBalancesView: document.getElementById('vault-balances-view'),
+            
+            // Footer & Modals
+            footPing: document.getElementById('foot-ping'),
+            modalOverlay: document.getElementById('modal-overlay'),
+            mApiKey: document.getElementById('modal-apikey'),
+            mConfirm: document.getElementById('modal-confirm'),
+            mWipe: document.getElementById('modal-wipe'),
+            inputApiKey: document.getElementById('input-apikey'),
+            confirmMsg: document.getElementById('confirm-msg')
+        };
+
+        // -- STREAMING_CHUNK:Core Utility Functions & Networking... --
+
+        const formatMoney = (val, dec = 2) => {
+            if (val == null) return '--.--';
+            return new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', minimumFractionDigits: dec, maximumFractionDigits: dec }).format(val).replace('$', '');
+        };
+        const formatTime = (date) => date ? date.toLocaleTimeString('en-GB', { hour12: false }) : '--:--:--';
+
+        // Custom Modal Confirm Promise pattern
+        let confirmResolve = null;
+        const confirmAction = (message) => {
+            if (state.isConfirming) return Promise.resolve(false);
+            state.isConfirming = true;
+            el.confirmMsg.textContent = message;
+            el.mConfirm.classList.remove('hidden');
+            el.modalOverlay.classList.remove('hidden');
+            
+            return new Promise((resolve) => {
+                confirmResolve = resolve;
+            });
+        };
+        const closeConfirm = (result) => {
+            el.mConfirm.classList.add('hidden');
+            checkCloseOverlay();
+            state.isConfirming = false;
+            if (confirmResolve) {
+                confirmResolve(result);
+                confirmResolve = null;
+            }
+        };
+
+        const checkCloseOverlay = () => {
+            if (el.mApiKey.classList.contains('hidden') && 
+                el.mConfirm.classList.contains('hidden') && 
+                el.mWipe.classList.contains('hidden')) {
+                el.modalOverlay.classList.add('hidden');
+            }
+        };
+
+        const showApiKeyModal = () => {
+            el.inputApiKey.value = state.apiKey;
+            el.mApiKey.classList.remove('hidden');
+            el.modalOverlay.classList.remove('hidden');
+        };
+        const hideApiKeyModal = () => {
+            el.mApiKey.classList.add('hidden');
+            checkCloseOverlay();
+        };
+
+        const showWipeModal = () => {
+            el.mWipe.classList.remove('hidden');
+            el.modalOverlay.classList.remove('hidden');
+        };
+
+        // Logging system
+        const addLog = (msg, isError = false) => {
+            const time = formatTime(new Date());
+            const entry = { time, msg, isError };
+            state.logs.unshift(entry);
+            if (state.logs.length > 50) state.logs.pop();
+            localStorage.setItem('DREAMDEX_LOGS', JSON.stringify(state.logs));
+            renderLogs();
+        };
+        const renderLogs = () => {
+            el.tradeLogs.innerHTML = state.logs.map(l => 
+                `<div class="${l.isError ? 'text-danger' : 'text-textMain'}">[${l.time}] ${l.msg}</div>`
+            ).join('');
+        };
+
+        // API Fetch Wrapper
+        const apiCall = async (endpoint, options = {}) => {
+            const url = `${BASE_URL}${endpoint}`;
+            const headers = { 'Content-Type': 'application/json' };
+            if (options.method && options.method !== 'GET') {
+                headers['X-API-Key'] = state.apiKey;
+            }
+            try {
+                const res = await fetch(url, { ...options, headers });
+                if (res.status === 401) {
+                    showApiKeyModal();
+                    throw new Error('Unauthorized - Check API Key');
+                }
+                if (!res.ok) throw new Error(`HTTP ${res.status}`);
+                // Handle empty responses
+                const text = await res.text();
+                return text ? JSON.parse(text) : {};
+            } catch (err) {
+                throw err;
+            }
+        };
+
+        // -- STREAMING_CHUNK:Polling Engine & Renderers... --
+
+        // Calculate backoff delay
+        const getBackoff = (failures) => Math.min(1000 * Math.pow(2, failures), 30000);
+
+        const updateConnectionStatus = () => {
+            const totalErrors = Object.values(state.errors).reduce((a, b) => a + b, 0);
+            
+            // Check if backend is reachable (agent is our heartbeat)
+            if (state.errors.agent > 0) {
+                el.statusDot.className = 'w-2.5 h-2.5 rounded-full bg-danger';
+                el.statusText.textContent = 'DISCONNECTED';
+                el.statusText.className = 'text-danger font-mono text-xs';
+                el.statusTooltip.textContent = `Unreachable. Retrying in ${getBackoff(state.errors.agent)/1000}s...`;
+                return;
+            }
+
+            if (state.agent) {
+                if (state.agent.paused || state.agent.orders_done === state.agent.max_orders) {
+                    el.statusDot.className = 'w-2.5 h-2.5 rounded-full bg-warning';
+                    el.statusText.textContent = 'PAUSED';
+                    el.statusText.className = 'text-warning font-mono text-xs';
+                    el.statusTooltip.textContent = state.agent.orders_done === state.agent.max_orders ? 'Max orders reached.' : 'Agent paused manually.';
+                } else {
+                    el.statusDot.className = 'w-2.5 h-2.5 rounded-full bg-success';
+                    el.statusText.textContent = 'RUNNING';
+                    el.statusText.className = 'text-success font-mono text-xs';
+                    el.statusTooltip.textContent = 'Connected and loop active.';
+                }
+            }
+            
+            // Footer pings
+            el.footPing.textContent = `Last: A:${formatTime(state.lastTick.agent)} | P:${formatTime(state.lastTick.prices)} | V:${formatTime(state.lastTick.portfolio)}`;
+        };
+
+        const renderSparkline = (values) => {
+            if (!values || values.length < 2) return '';
+            const width = 48;
+            const height = 16;
+            const min = Math.min(...values);
+            const max = Math.max(...values);
+            const range = max - min || 1; // avoid /0
+            
+            const points = values.map((val, i) => {
+                const x = (i / 23) * width; // 24 samples = 23 intervals
+                const y = height - ((val - min) / range) * height;
+                return `${x},${y}`;
+            }).join(' ');
+
+            // SVG stroke can't resolve theme() — pull the live CSS variable.
+            const rootStyle = getComputedStyle(document.documentElement);
+            const color = (values[values.length-1] >= values[0]
+                ? rootStyle.getPropertyValue('--c-success')
+                : rootStyle.getPropertyValue('--c-danger')).trim() || '#4ec27c';
+            
+            return `<svg width="${width}" height="${height}" class="inline-block overflow-visible"><polyline points="${points}" fill="none" stroke="${color}" stroke-width="1.5" stroke-linejoin="round" stroke-linecap="round"/></svg>`;
+        };
+
+        const pollPrices = async () => {
+            try {
+                const data = await apiCall('/prices');
+                state.prices = data;
+                state.errors.prices = 0;
+                state.lastTick.prices = new Date();
+                
+                // Update pairs dropdowns if changed
+                const pairs = Object.keys(data);
+                if (el.tradePair.options.length <= 1) {
+                    const html = pairs.map(p => `<option value="${p}">${p}</option>`).join('');
+                    el.tradePair.innerHTML = html;
+                    el.vaultPair.innerHTML = html;
+                }
+
+                // Render table
+                let html = '';
+                for (const pair of pairs) {
+                    const info = data[pair];
+                    
+                    // Update history
+                    if (!state.priceHistory[pair]) state.priceHistory[pair] = [];
+                    state.priceHistory[pair].push(info.mid);
+                    if (state.priceHistory[pair].length > 24) state.priceHistory[pair].shift();
+
+                    html += `
+                        <tr class="table-row hover:bg-border/30">
+                            <td class="py-2 px-3">${pair}</td>
+                            <td class="py-2 px-3 text-right">${info.mid >= 10 ? formatMoney(info.mid) : info.mid.toFixed(5)}</td>
+                            <td class="py-2 px-3 text-right text-textMuted">${info.bid >= 10 ? formatMoney(info.bid) : info.bid.toFixed(5)}</td>
+                            <td class="py-2 px-3 text-right text-textMuted">${info.ask >= 10 ? formatMoney(info.ask) : info.ask.toFixed(5)}</td>
+                            <td class="py-2 px-3 text-right">${info.spread.toFixed(3)}%</td>
+                            <td class="py-2 px-3 pl-0 pr-2 w-16 text-right">${renderSparkline(state.priceHistory[pair])}</td>
+                        </tr>
+                    `;
+                }
+                el.pricesTbody.innerHTML = html;
+            } catch (err) {
+                state.errors.prices++;
+            } finally {
+                updateConnectionStatus();
+                setTimeout(pollPrices, state.errors.prices ? getBackoff(state.errors.prices) : 5000);
+            }
+        };
+
+        // -- STREAMING_CHUNK:Agent State Rendering Logic... --
+
+        const pollMicro = async () => {
+            try {
+                const res = await fetch(`${BASE_URL}/agent/micro`);
+                if (res.status === 404) {
+                    // No sub-agent configured — hide the block.
+                    if (el.microBlock) el.microBlock.classList.add('hidden');
+                    return;
+                }
+                if (!res.ok) throw new Error(`HTTP ${res.status}`);
+                const data = await res.json();
+                state.microAvailable = true;
+                if (el.microBlock) el.microBlock.classList.remove('hidden');
+
+                // Progress line (right side): "N orders · profit · $2-$5"
+                if (el.microProgress) {
+                    const txn = (data.state && data.state.tx_count) || 0;
+                    el.microProgress.textContent = `${txn} orders · profit · $2–$5 · ${data.loop_secs}s loop`;
+                }
+
+                // Status line: render the latest orchestrator-driven decision
+                const dec = data.last_decision || {};
+                const act = (dec.action || '—').toUpperCase();
+                const pair = dec.pair || '---';
+                const amt = dec.amount_usdso != null ? `$${(+dec.amount_usdso).toFixed(2)}` : '';
+                const reason = dec.reason || '';
+                const status = dec.result_status;
+                let icon, colorClass;
+                if (act === 'BUY')  { icon = '🟢'; colorClass = 'text-success'; }
+                else if (act === 'SELL') { icon = '🔴'; colorClass = 'text-danger'; }
+                else if (act === 'HOLD') { icon = '⏸'; colorClass = 'text-warning'; }
+                else                 { icon = '—'; colorClass = 'text-textMuted'; }
+                if (el.microStatusLine) {
+                    if (act === '—') {
+                        el.microStatusLine.textContent = 'Awaiting first orchestrated decision…';
+                        el.microStatusLine.style.color = 'var(--c-muted)';
+                    } else {
+                        el.microStatusLine.innerHTML =
+                            `${icon} <span class="${colorClass} font-bold">${act}</span> ${pair} ${amt} ` +
+                            `<span class="text-textMuted">${reason}</span>` +
+                            (status ? ` <span class="text-textMuted">→ ${status}</span>` : '');
+                        el.microStatusLine.style.color = '';
+                    }
+                }
+
+                // Activity log: diff against last seen micro decision
+                if (dec && dec.time) {
+                    const key = dec.time + ':' + (status || 'pending');
+                    if (key !== state.lastMicroDecisionTime) {
+                        const isTrade = act === 'BUY' || act === 'SELL';
+                        if (!isTrade || status) {
+                            state.lastMicroDecisionTime = key;
+                            let mIcon, label;
+                            if (act === 'HOLD') { mIcon = '⏸'; label = 'HOLD'; }
+                            else if (status === 'success') {
+                                mIcon  = (act === 'BUY') ? '🟢' : '🔴';
+                                label = act + ' filled';
+                            } else if (status === 'would_revert') {
+                                mIcon = '🟡'; label = act + ' sim-rejected';
+                            } else if (['silent_reject','placed_unfilled','reverted','unverified','error'].includes(status)) {
+                                mIcon = '🟠'; label = act + ' ' + status;
+                            } else {
+                                mIcon = '⚪'; label = act + ' ' + (status || '?');
+                            }
+                            addLog(`${mIcon} [micro] ${label} ${pair} ${amt} — ${reason}`);
+                        }
+                    }
+                }
+                // Tx-count diff
+                const tx = (data.state && data.state.tx_count) || 0;
+                if (state.lastMicroTxCount !== null && tx > state.lastMicroTxCount) {
+                    addLog(`✅ [micro] tx_count +${tx - state.lastMicroTxCount} (now ${tx})`);
+                }
+                state.lastMicroTxCount = tx;
+            } catch (err) {
+                /* silent — sub-agent optional */
+            } finally {
+                setTimeout(pollMicro, 5000);
+            }
+        };
+
+        const pollDirectBurst = async () => {
+            try {
+                const res = await fetch(`${BASE_URL}/direct_burst`);
+                if (!res.ok) throw new Error(`HTTP ${res.status}`);
+                const data = await res.json();
+                if (!data.available) {
+                    if (el.directBurstStatusLine) {
+                        el.directBurstStatusLine.textContent = data.reason || 'Not running.';
+                        el.directBurstStatusLine.style.color = 'var(--c-muted)';
+                    }
+                    if (el.directBurstProgress) el.directBurstProgress.textContent = '— · — · —';
+                    return;
+                }
+                const running = !!data.running;
+                const txps = data.tx_per_sec != null ? data.tx_per_sec.toFixed(2) : '—';
+                const sent = data.sent != null ? data.sent : 0;
+                const cyc = data.cycles_done != null ? data.cycles_done : 0;
+                const total = data.cycles_total != null ? data.cycles_total : '∞';
+                const leg = data.leg_size != null ? `$${(+data.leg_size).toFixed(2)}` : '—';
+                const ago = data.last_action_ago_s;
+                let agoStr;
+                if (ago == null) agoStr = '—';
+                else if (ago < 60) agoStr = `${Math.round(ago)}s`;
+                else if (ago < 3600) agoStr = `${Math.round(ago/60)}m`;
+                else agoStr = `${(ago/3600).toFixed(1)}h`;
+
+                if (el.directBurstProgress) {
+                    el.directBurstProgress.textContent =
+                        `${txps} tx/s · ${leg} leg · cycle ${cyc}/${total}`;
+                }
+                if (el.directBurstStatusLine) {
+                    const icon = running ? '🟢' : '⏸';
+                    const stateText = running ? 'RUNNING' : 'IDLE';
+                    const stateColor = running ? 'text-success' : 'text-warning';
+                    const errs = data.send_errs || 0;
+                    el.directBurstStatusLine.innerHTML =
+                        `${icon} <span class="${stateColor} font-bold">${stateText}</span> ` +
+                        `<span class="text-textMuted">last action</span> ${agoStr} ago · ` +
+                        `<span class="text-textMuted">sent</span> ${sent}` +
+                        (errs > 0 ? ` <span class="text-warning">· errs ${errs}</span>` : '');
+                    el.directBurstStatusLine.style.color = '';
+                }
+            } catch (err) {
+                /* silent — direct burst is optional */
+            } finally {
+                setTimeout(pollDirectBurst, 5000);
+            }
+        };
+
+        const pollBurst = async () => {
+            try {
+                const res = await fetch(`${BASE_URL}/burst`);
+                if (!res.ok) throw new Error(`HTTP ${res.status}`);
+                const data = await res.json();
+                if (el.burstBlock) el.burstBlock.classList.remove('hidden');
+
+                const running = !!data.running;
+                const leg = data.leg_size != null ? `$${data.leg_size.toFixed(2)}` : '—';
+                const lastAgo = data.last_fill_ago_s;
+                let ago;
+                if (lastAgo == null) ago = '—';
+                else if (lastAgo < 60) ago = `${Math.round(lastAgo)}s`;
+                else if (lastAgo < 3600) ago = `${Math.round(lastAgo/60)}m`;
+                else ago = `${(lastAgo/3600).toFixed(1)}h`;
+
+                // Right side: fill rate · leg · total
+                if (el.burstProgress) {
+                    const fpm = (data.fills_5m || 0) / 5;
+                    el.burstProgress.textContent =
+                        `${fpm.toFixed(1)}/min · ${leg} leg · ${data.fills_total || 0} total`;
+                }
+
+                // Status line
+                if (el.burstStatusLine) {
+                    if (data.fills_total === 0) {
+                        el.burstStatusLine.textContent = 'Awaiting first burst fill…';
+                        el.burstStatusLine.style.color = 'var(--c-muted)';
+                    } else {
+                        const icon = running ? '🟢' : '⏸';
+                        const stateText = running ? 'RUNNING' : 'IDLE';
+                        const stateColor = running ? 'text-success' : 'text-warning';
+                        const volH = data.volume_1h != null ? `$${Math.round(data.volume_1h).toLocaleString()}` : '—';
+                        el.burstStatusLine.innerHTML =
+                            `${icon} <span class="${stateColor} font-bold">${stateText}</span> ` +
+                            `<span class="text-textMuted">last fill</span> ${ago} ago · ` +
+                            `<span class="text-textMuted">1h vol</span> ${volH} · ` +
+                            `<span class="text-textMuted">${data.fills_1h || 0} fills</span>`;
+                        el.burstStatusLine.style.color = '';
+                    }
+                }
+            } catch (err) {
+                /* silent — burst is optional surface */
+            } finally {
+                setTimeout(pollBurst, 5000);
+            }
+        };
+
+        const pollMode = async () => {
+            try {
+                const data = await apiCall('/agent/mode');
+                // Backend returns { mode (effective), auto (bool), selected (what user picked) }.
+                // We highlight `selected`, never the effective mode.
+                state.mode     = data.mode || 'grind';
+                // If `auto` is true, the selected control is AUTO — regardless of
+                // what the effective mode landed on this tick. We DO NOT fall back
+                // to `data.mode` because that would un-highlight AUTO every time
+                // the auto-flip swung the effective mode.
+                state.selected = data.auto ? 'auto' : (data.selected || data.mode || 'grind');
+                if (el.modeGroup) {
+                    Array.from(el.modeGroup.children).forEach(b => {
+                        const isSelected = b.dataset.mode === state.selected;
+                        b.classList.toggle('btn-active', isSelected);
+                        // Annotate AUTO with the live effective mode (e.g. "AUTO (GRI)")
+                        if (b.dataset.mode === 'auto') {
+                            b.textContent = state.selected === 'auto'
+                                ? `AUTO (${state.mode.toUpperCase().slice(0,3)})`
+                                : 'AUTO';
+                        }
+                    });
+                }
+                if (state.lastMode !== null && state.lastMode !== state.mode) {
+                    addLog(`🎯 Mode flip: ${state.lastMode} → ${state.mode}${state.selected === 'auto' ? ' (auto)' : ''}`);
+                }
+                state.lastMode = state.mode;
+            } catch (err) {
+                /* silent */
+            } finally {
+                setTimeout(pollMode, 10000);
+            }
+        };
+
+        const pollAgent = async () => {
+            try {
+                const data = await apiCall('/agent');
+                state.agent = data;
+                state.errors.agent = 0;
+                state.lastTick.agent = new Date();
+
+                // Diff-based activity log. For trade decisions we wait for the
+                // result_status to come back before logging, so each entry
+                // shows the *outcome* (success vs sim-rejected vs silent-reject)
+                // and the user no longer sees three duplicate-looking BUYs
+                // that were actually three sim-rejected attempts.
+                const decLog = data.last_decision;
+                if (decLog && decLog.time) {
+                    const act = (decLog.action || 'hold').toUpperCase();
+                    const status = decLog.result_status || null;
+                    // Unique key: time + status. We log once when status is
+                    // unknown (HOLD) and again if status flips later.
+                    const key = decLog.time + ':' + (status || 'pending');
+                    if (key !== state.lastDecisionTime) {
+                        // For trade actions, suppress the "pending" log entry
+                        // and wait for the next poll where status is populated.
+                        const isTrade = act === 'BUY' || act === 'SELL';
+                        if (!isTrade || status) {
+                            state.lastDecisionTime = key;
+                            const pair = decLog.pair || '---';
+                            const amt = decLog.amount_usdso != null ? `$${(+decLog.amount_usdso).toFixed(2)}` : '';
+                            const conf = decLog.confidence != null ? `${decLog.confidence}%` : '';
+                            const reason = decLog.reason || '';
+                            // Icon by outcome, not just side:
+                            //   🟢 BUY landed on chain
+                            //   🔴 SELL landed on chain
+                            //   🟡 sim-rejected (would_revert) — never broadcast, no $$ moved
+                            //   🟠 tx broadcast but rejected / silent / unverified
+                            //   ⏸ HOLD
+                            let icon, label;
+                            if (act === 'HOLD') { icon = '⏸'; label = 'HOLD'; }
+                            else if (status === 'success') {
+                                icon  = (act === 'BUY') ? '🟢' : '🔴';
+                                label = act + ' filled';
+                            } else if (status === 'would_revert') {
+                                icon = '🟡'; label = act + ' sim-rejected';
+                            } else if (['silent_reject','placed_unfilled','reverted','unverified','error'].includes(status)) {
+                                icon = '🟠'; label = act + ' ' + status;
+                            } else {
+                                icon = '⚪'; label = act + ' ' + (status || '?');
+                            }
+                            addLog(`${icon} [main] ${label} ${pair} ${amt} (${conf}) — ${reason}`);
+                        }
+                    }
+                }
+                const tx = data.state && typeof data.state.tx_count === 'number' ? data.state.tx_count : null;
+                if (tx !== null) {
+                    if (state.lastTxCount !== null && tx > state.lastTxCount) {
+                        const delta = tx - state.lastTxCount;
+                        addLog(`✅ [main] tx_count +${delta} (now ${tx})`);
+                    }
+                    state.lastTxCount = tx;
+                }
+
+                // Button state
+                if (data.orders_done >= data.max_orders && data.max_orders > 0) {
+                    el.btnToggle.textContent = 'DONE';
+                    el.btnToggle.disabled = true;
+                    el.btnToggle.className = 'btn-base py-2 px-6 flex-shrink-0 min-w-[100px] border-border text-textMuted bg-transparent cursor-not-allowed';
+                } else if (data.paused) {
+                    el.btnToggle.textContent = '▶ PLAY';
+                    el.btnToggle.disabled = false;
+                    el.btnToggle.className = 'btn-base font-bold py-2 px-6 flex-shrink-0 min-w-[100px] text-success border-success hover:bg-success hover:text-bg';
+                } else {
+                    el.btnToggle.textContent = '⏸ PAUSE';
+                    el.btnToggle.disabled = false;
+                    el.btnToggle.className = 'btn-base font-bold py-2 px-6 flex-shrink-0 min-w-[100px] text-warning border-warning hover:bg-warning hover:text-bg';
+                }
+
+                // Speed buttons
+                const speedMap = { 600: 'slow', 300: 'normal', 120: 'fast', 45: 'max' };
+                const currentSpeedStr = speedMap[data.loop_secs] || 'normal';
+                document.querySelectorAll('#speed-group button').forEach(b => {
+                    if (b.dataset.speed === currentSpeedStr) b.classList.add('btn-active');
+                    else b.classList.remove('btn-active');
+                });
+
+                // Max orders
+                if (document.activeElement !== el.inputMaxOrders) {
+                    el.inputMaxOrders.value = data.max_orders === 0 ? '' : data.max_orders;
+                }
+                el.progress.textContent = data.max_orders === 0 ? `${data.orders_done} / ∞` : `${data.orders_done} / ${data.max_orders}`;
+
+                // Status line / BAL LOW banner
+                const dec = data.last_decision;
+                if (dec && dec.reason && dec.reason.toLowerCase().includes('capital floor')) {
+                    el.agentBalLow.classList.remove('hidden');
+                    const walletBal = data.state.usdso_balance || 0;
+                    const needed = Math.max(0, CAPITAL_FLOOR - walletBal);
+                    el.balLowDetails.innerHTML = `Wallet USDso: $${walletBal.toFixed(2)} <br> Need $${needed.toFixed(2)} more to reach the $${CAPITAL_FLOOR} floor`;
+                    el.statusLine.textContent = `[!] CAPITAL FLOOR HIT`;
+                    el.statusLine.className = 'font-mono text-sm text-danger truncate';
+                } else {
+                    el.agentBalLow.classList.add('hidden');
+                    if (data.orders_done >= data.max_orders && data.max_orders > 0) {
+                        el.statusLine.textContent = `MAX ORDERS REACHED — raise the cap to continue.`;
+                        el.statusLine.className = 'font-mono text-sm text-warning truncate';
+                    } else if (dec) {
+                        const act = dec.action.toUpperCase();
+                        let colorClass = 'text-textMain';
+                        if (act === 'BUY') colorClass = 'text-success';
+                        if (act === 'SELL') colorClass = 'text-danger';
+                        if (act === 'HOLD') colorClass = 'text-warning';
+                        
+                        el.statusLine.innerHTML = `<span class="${colorClass} font-bold">${act}</span> ${dec.pair || '---'} • ${dec.confidence}% • <span class="text-textMuted">${dec.reason}</span> • last @ ${dec.time}`;
+                        el.statusLine.className = 'font-mono text-sm truncate';
+                    } else {
+                        el.statusLine.textContent = 'Awaiting initial decision...';
+                        el.statusLine.className = 'font-mono text-sm text-textMuted truncate';
+                    }
+                }
+            } catch (err) {
+                state.errors.agent++;
+            } finally {
+                updateConnectionStatus();
+                setTimeout(pollAgent, state.errors.agent ? getBackoff(state.errors.agent) : 5000);
+            }
+        };
+
+        // -- STREAMING_CHUNK:Portfolio Rendering Logic... --
+
+        const pollPortfolio = async () => {
+            try {
+                const data = await apiCall('/portfolio');
+                state.portfolio = data;
+                state.errors.portfolio = 0;
+                state.lastTick.portfolio = new Date();
+
+                // Staleness check
+                const nowUnix = Date.now() / 1000;
+                if (nowUnix - data.last_refresh > 120) {
+                    el.portStale.classList.remove('hidden');
+                } else {
+                    el.portStale.classList.add('hidden');
+                }
+
+                // Compute REAL total value internally — wallet USDso + vault USDso +
+                // native SOMI valued at mid + per-pair wallet inventory valued at
+                // mid. The leaderboard's wallet-only number under-reports during
+                // mid-cycle, so we ignore it for PnL display.
+                const vaultTotal = Object.values(data.usdso_vaults || {}).reduce((a, b) => a + b, 0);
+                const nativeBal  = data.native_balance || 0;
+                const prices     = state.prices || {};
+                let inventoryUsd = 0;
+                let inventoryBreakdown = []; // for tooltip / detail
+                const walletBase = data.wallet_base || {};
+                for (const [pair, info] of Object.entries(walletBase)) {
+                    const qty = info.qty || 0;
+                    if (qty <= 0) continue;
+                    if (pair === 'SOMI:USDso') continue; // counted via native below
+                    const mid = (prices[pair] || {}).mid || 0;
+                    const usd = qty * mid;
+                    if (usd > 0.01) {
+                        inventoryUsd += usd;
+                        inventoryBreakdown.push(`${qty.toFixed(4)} ${pair.split(':')[0]} (~$${usd.toFixed(2)})`);
+                    }
+                }
+                const somiMid    = (prices['SOMI:USDso'] || {}).mid || 0;
+                const nativeUsd  = nativeBal * somiMid;
+                const totalUsd   = (data.usdso_wallet || 0) + vaultTotal + inventoryUsd + nativeUsd;
+
+                el.portTotal.textContent = `$${formatMoney(totalUsd)}`;
+                const pnl = totalUsd - INITIAL_SEED;
+                const pnlPct = (pnl / INITIAL_SEED) * 100;
+                el.portPnl.textContent = `${pnl >= 0 ? '+' : '-'}$${formatMoney(Math.abs(pnl))} (${pnlPct > 0 ? '+' : ''}${pnlPct.toFixed(2)}%)`;
+                el.portPnl.className = 'font-mono text-2xl ' + (pnl < 0 ? 'text-danger' : 'text-success');
+
+                el.liqWallet.textContent = `$${formatMoney(data.usdso_wallet)}`;
+                el.liqVault.textContent  = `$${formatMoney(vaultTotal)}`;
+                el.liqNative.textContent = `${nativeBal.toFixed(4)} SOMI (~$${nativeUsd.toFixed(2)})`;
+                el.liqVault.className = 'col-span-2 py-1.5 px-3 text-right ' + (vaultTotal > 0.5 ? 'text-warning' : '');
+                // Surface base inventory next to manual reserve so the user can
+                // see exactly how much value is sitting as base tokens.
+                if (el.liqManual && inventoryBreakdown.length) {
+                    el.liqManual.textContent = `+ $${inventoryUsd.toFixed(2)} inventory`;
+                    el.liqManual.title = inventoryBreakdown.join(' · ');
+                    el.liqManual.style.color = 'var(--c-warning)';
+                } else if (el.liqManual) {
+                    el.liqManual.textContent = '$20.00';
+                    el.liqManual.title = '';
+                    el.liqManual.style.color = '';
+                }
+
+                // Render Stacked Bar
+                const totalBalance = data.agent_balance || 0.01; // avoid /0
+                let barHtml = '';
+                
+                // Wallet segment
+                const walletPct = (data.usdso_wallet / totalBalance) * 100;
+                barHtml += `<div style="width: ${walletPct}%" class="bg-textMuted transition-all duration-500 border-r border-bg" title="Wallet: $${data.usdso_wallet.toFixed(2)}"></div>`;
+                
+                // Vault segments
+                const vaultColors = ['bg-[#4a9c59]', '#cc4a4a', '#c99a34', '#3b82f6'];
+                let vIdx = 0;
+                let balancesText = `Wallet USDso ........ $${formatMoney(data.usdso_wallet)}\n`;
+                balancesText += `Wallet native SOMI .. ${(data.native_balance || 0).toFixed(4)}  (~$${formatMoney((data.native_balance||0)*0.165)})\n`;
+                balancesText += `---\nVault USDso (by pool):\n`;
+
+                for (const [pair, amt] of Object.entries(data.usdso_vaults || {})) {
+                    balancesText += `  ${pair.padEnd(14)} $${formatMoney(amt)}\n`;
+                    if (amt > 0) {
+                        const pct = (amt / totalBalance) * 100;
+                        const c = vaultColors[vIdx % vaultColors.length];
+                        barHtml += `<div style="width: ${pct}%" class="${c.startsWith('bg-') ? c : `bg-[${c}]`} transition-all duration-500 border-r border-bg" title="${pair}: $${amt.toFixed(2)}"></div>`;
+                    }
+                    vIdx++;
+                }
+                el.portBar.innerHTML = barHtml;
+                el.vaultBalancesView.textContent = balancesText;
+
+                // Toggle Vault card visibility
+                if (data.usdso_wallet > 0 || vaultTotal > 0) {
+                    el.vaultCard.classList.remove('hidden');
+                } else {
+                    el.vaultCard.classList.add('hidden');
+                }
+
+            } catch (err) {
+                state.errors.portfolio++;
+            } finally {
+                setTimeout(pollPortfolio, state.errors.portfolio ? getBackoff(state.errors.portfolio) : 30000);
+            }
+        };
+
+        const pollLeaderboard = async () => {
+            try {
+                const data = await apiCall('/leaderboard');
+                state.errors.leaderboard = 0;
+                state.leaderboard = data;
+                const liveOk = data && data.live === true && data.total > 0;
+                if (!liveOk) {
+                    el.headerLdb.textContent = 'LDB: PENDING';
+                    el.headerLdb.classList.remove('hidden');
+                    if (el.portVolume) el.portVolume.textContent = '$--.--';
+                    if (el.portFills) el.portFills.textContent = '-- fills / -- txs sent';
+                } else {
+                    const signalColor = data.signal === 'PROTECT' ? 'text-success' : (data.signal === 'CHASE' ? 'text-warning' : 'text-textMuted');
+                    el.headerLdb.innerHTML = `RANK: ${data.my_rank}/${data.total} | <span class="${signalColor}">${data.signal}</span>`;
+                    el.headerLdb.classList.remove('hidden');
+                    // Populate volume/fills card
+                    if (el.portVolume) el.portVolume.textContent = `$${formatMoney(data.my_volume || 0)}`;
+                    if (el.portFills) {
+                        const txs = data.my_tx || 0;
+                        const fills = data.my_fills || 0;
+                        const rate = txs > 0 ? ((fills / txs) * 100).toFixed(0) : 0;
+                        el.portFills.textContent = `${fills} fills / ${txs} txs (${rate}% fill rate)`;
+                    }
+                }
+            } catch (err) {
+                state.errors.leaderboard++;
+                el.headerLdb.classList.add('hidden');
+            } finally {
+                setTimeout(pollLeaderboard, state.errors.leaderboard ? getBackoff(state.errors.leaderboard) : 60000);
+            }
+        };
+
+        // -- STREAMING_CHUNK:Event Listeners & Mutations... --
+
+        // UI Interactions
+        el.tradeSideGroup.addEventListener('click', (e) => {
+            if (e.target.tagName !== 'BUTTON') return;
+            Array.from(el.tradeSideGroup.children).forEach(b => b.classList.remove('btn-active'));
+            e.target.classList.add('btn-active');
+            state.manualSide = e.target.dataset.side;
+        });
+
+        el.vaultTokenGroup.addEventListener('click', (e) => {
+            if (e.target.tagName !== 'BUTTON') return;
+            Array.from(el.vaultTokenGroup.children).forEach(b => b.classList.remove('btn-active'));
+            e.target.classList.add('btn-active');
+            state.vaultToken = e.target.dataset.token;
+        });
+
+        // Agent Controls
+        el.btnToggle.addEventListener('click', async () => {
+            if (!state.apiKey) return showApiKeyModal();
+            try {
+                el.btnToggle.disabled = true;
+                const prev = el.btnToggle.textContent;
+                el.btnToggle.textContent = '...';
+                await apiCall('/agent/toggle', { method: 'POST' });
+                // We don't optimistically update - next poll will catch it
+                addLog('Command sent: toggle pause', false);
+            } catch (e) {
+                addLog(`Toggle failed: ${e.message}`, true);
+                el.btnToggle.disabled = false;
+            }
+        });
+
+        el.speedGroup.addEventListener('click', async (e) => {
+            if (e.target.tagName !== 'BUTTON') return;
+            if (!state.apiKey) return showApiKeyModal();
+            const speed = e.target.dataset.speed;
+            try {
+                await apiCall('/agent/speed', { method: 'POST', body: JSON.stringify({ speed }) });
+                addLog(`Command sent: speed set to ${speed}`, false);
+            } catch (err) {
+                addLog(`Speed change failed: ${err.message}`, true);
+            }
+        });
+
+        if (el.modeGroup) {
+            el.modeGroup.addEventListener('click', async (e) => {
+                if (e.target.tagName !== 'BUTTON') return;
+                if (!state.apiKey) return showApiKeyModal();
+                const mode = e.target.dataset.mode;
+                try {
+                    await apiCall('/agent/mode', { method: 'POST', body: JSON.stringify({ mode }) });
+                    addLog(`Command sent: mode set to ${mode}`, false);
+                    pollMode();  // refresh button state immediately
+                } catch (err) {
+                    addLog(`Mode change failed: ${err.message}`, true);
+                }
+            });
+        }
+
+        el.btnSaveMaxOrders.addEventListener('click', async () => {
+            if (!state.apiKey) return showApiKeyModal();
+            const val = parseInt(el.inputMaxOrders.value, 10);
+            const max_orders = isNaN(val) ? 0 : Math.max(0, val);
+            try {
+                el.btnSaveMaxOrders.textContent = '...';
+                await apiCall('/agent/max_orders', { method: 'POST', body: JSON.stringify({ max_orders }) });
+                addLog(`Command sent: max orders set to ${max_orders === 0 ? '∞' : max_orders}`, false);
+            } catch (err) {
+                addLog(`Max orders failed: ${err.message}`, true);
+            } finally {
+                el.btnSaveMaxOrders.textContent = 'SET';
+            }
+        });
+
+        // Manual Trade
+        el.btnTradeSend.addEventListener('click', async () => {
+            if (!state.apiKey) return showApiKeyModal();
+            
+            const pair = el.tradePair.value;
+            const side = state.manualSide;
+            const amount = parseFloat(el.tradeAmount.value);
+
+            if (!pair || isNaN(amount) || amount <= 0) {
+                alert("Please valid pair and amount."); // Quick fallback for basic validation, prompt asks for no alerts but we use confirm modal below. Actually, no alerts at all.
+                return;
+            }
+
+            const confirmed = await confirmAction(`${side.toUpperCase()} ${amount.toFixed(2)} USDso of ${pair} ?`);
+            if (!confirmed) return;
+
+            el.btnTradeSend.disabled = true;
+            el.btnTradeSend.textContent = 'SENDING...';
+            
+            try {
+                const res = await apiCall('/manual', { method: 'POST', body: JSON.stringify({ pair, side, amount_usdso: amount }) });
+                
+                if (res.status === 'success') {
+                    addLog(`✓ ${side.toUpperCase()} ${pair} $${amount.toFixed(2)} — tx ${res.tx_hash.substring(0,10)}... block ${res.block}`);
+                } else if (res.status === 'error') {
+                    addLog(`✗ ${side.toUpperCase()} ${pair} $${amount.toFixed(2)} — error (${res.error})`, true);
+                } else {
+                    addLog(`✗ ${side.toUpperCase()} ${pair} $${amount.toFixed(2)} — ${res.status} (tx ${res.tx_hash ? res.tx_hash.substring(0,10)+'...' : 'N/A'})`, true);
+                }
+            } catch (err) {
+                addLog(`✗ HTTP Error during trade: ${err.message}`, true);
+            } finally {
+                el.btnTradeSend.disabled = false;
+                el.btnTradeSend.textContent = 'EXECUTE';
+                el.tradeAmount.value = '';
+            }
+        });
+
+        // Vault Management
+        const handleVault = async (action) => {
+            if (!state.apiKey) return showApiKeyModal();
+            const pair = el.vaultPair.value;
+            const tokenSymbol = state.vaultToken === 'base' ? pair.split(':')[0] : 'USDso';
+            const amount = parseFloat(el.vaultAmount.value);
+            
+            if (!pair || isNaN(amount) || amount <= 0) return;
+
+            const confirmed = await confirmAction(`${action.toUpperCase()} ${amount.toFixed(4)} ${tokenSymbol} to/from ${pair} vault?`);
+            if (!confirmed) return;
+
+            const btn = action === 'deposit' ? el.btnVaultDep : el.btnVaultWith;
+            const origText = btn.textContent;
+            btn.disabled = true;
+            btn.textContent = '...';
+
+            try {
+                // Determine token address
+                let tokenAddr = TOKEN_MAP[tokenSymbol] || '0x0'; // In reality backend handles mapping if not provided perfectly, but payload needs token
+                
+                const res = await apiCall(`/vault/${action}`, { method: 'POST', body: JSON.stringify({ pair, token: tokenAddr, amount }) });
+                if (res.status === 'success') {
+                    addLog(`✓ VAULT ${action.toUpperCase()} ${amount} ${tokenSymbol} — tx ${res.tx_hash.substring(0,10)}...`);
+                } else {
+                    addLog(`✗ VAULT ${action.toUpperCase()} error — ${res.error || res.status}`, true);
+                }
+            } catch (err) {
+                addLog(`✗ VAULT request failed: ${err.message}`, true);
+            } finally {
+                btn.disabled = false;
+                btn.textContent = origText;
+                el.vaultAmount.value = '';
+            }
+        };
+
+        el.btnVaultDep.addEventListener('click', () => handleVault('deposit'));
+        el.btnVaultWith.addEventListener('click', () => handleVault('withdraw'));
+
+        // Modals
+        document.getElementById('btn-api-key').addEventListener('click', showApiKeyModal);
+        document.getElementById('btn-close-apikey').addEventListener('click', hideApiKeyModal);
+        document.getElementById('btn-save-apikey').addEventListener('click', () => {
+            const key = el.inputApiKey.value.trim();
+            if (key) {
+                state.apiKey = key;
+                localStorage.setItem('DREAMDEX_API_KEY', key);
+                hideApiKeyModal();
+            }
+        });
+
+        document.getElementById('btn-wipe').addEventListener('click', showWipeModal);
+        document.getElementById('btn-close-wipe').addEventListener('click', () => {
+            el.mWipe.classList.add('hidden');
+            checkCloseOverlay();
+        });
+
+        document.getElementById('btn-confirm-cancel').addEventListener('click', () => closeConfirm(false));
+        document.getElementById('btn-confirm-ok').addEventListener('click', () => closeConfirm(true));
+
+        // Boot
+        const init = () => {
+            renderLogs();
+            if (!state.apiKey) showApiKeyModal();
+            
+            // Initial fetches
+            pollPrices();
+            pollAgent();
+            pollPortfolio();
+            pollLeaderboard();
+            pollMode();
+            pollMicro();
+            pollBurst();
+            pollDirectBurst();
+        };
+
+        window.onload = init;
+    </script>
+</body>
+</html>

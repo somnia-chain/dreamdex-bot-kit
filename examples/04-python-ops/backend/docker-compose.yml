@@ -1,0 +1,22 @@
+services:
+  agent:
+    build: .
+    image: dreamdex-agent:latest
+    container_name: dreamdex-agent
+    restart: unless-stopped
+    # Use host network namespace — the bridged port-publishing path was being
+    # blocked by something host-level (ufw/iptables/Docker quirk on this Ubuntu
+    # 24.04 box). With network_mode: host, Flask binds directly on the host's
+    # 5001 — cloudflared reaches it via 127.0.0.1:5001 as normal.
+    network_mode: host
+    env_file:
+      - .env
+    volumes:
+      - ./logs:/app/logs
+      - ./data:/app/data   # sqlite agent memory; survives container rebuilds
+    healthcheck:
+      test: ["CMD-SHELL", "python3 -c 'import urllib.request; urllib.request.urlopen(\"http://127.0.0.1:5001/prices\", timeout=2)' || exit 1"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 20s

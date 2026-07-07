@@ -1,0 +1,19 @@
+{
+  "name": "dreamdex-bot-kit",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Build automated trading bots on DreamDEX (Somnia CLOB).",
+  "type": "module",
+  "workspaces": [
+    "packages/*",
+    "strategies/*",
+    "advanced/*"
+  ],
+  "engines": {
+    "node": ">=20"
+  },
+  "scripts": {
+    "build": "npm run build -w @dreamdex-bot-kit/core",
+    "typecheck": "npm run build && npm run typecheck --workspaces --if-present"
+  }
+}

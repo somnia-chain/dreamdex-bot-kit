@@ -1,0 +1,65 @@
+# Dependencies
+node_modules/
+.pnp
+.pnp.js
+
+# Build output
+dist/
+build/
+*.tsbuildinfo
+
+# Environment & secrets — NEVER COMMIT
+.env
+.env.local
+.env.*.local
+*.pem
+*.key
+secrets/
+
+# Logs
+logs/
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pino-*.log
+
+# Runtime data
+pids/
+*.pid
+*.seed
+*.pid.lock
+
+# Coverage / test output
+coverage/
+.nyc_output/
+
+# CSV trade logs (audit data — keep local)
+data/
+trades-*.csv
+
+# OS files
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# Editor
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# PM2
+.pm2/
+ecosystem.config.local.js
+
+# Misc
+.cache/
+tmp/
+temp/
+
+# Draft commit messages (delete after use)
+COMMIT_MSG.txt
+COMMIT_MSG_*.txt
+
+.claude/settings.local.json

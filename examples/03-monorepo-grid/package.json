@@ -1,0 +1,17 @@
+{
+  "name": "trading",
+  "version": "0.1.0",
+  "private": true,
+  "scripts": {
+    "build": "turbo build",
+    "start": "pnpm --filter @trading/scripts run start",
+    "dev": "turbo dev --filter=@trading/grid-bot",
+    "dev:all": "turbo dev",
+    "type-check": "turbo type-check"
+  },
+  "devDependencies": {
+    "turbo": "^2.5.4",
+    "typescript": "^5.7.2"
+  },
+  "packageManager": "pnpm@9.15.4"
+}

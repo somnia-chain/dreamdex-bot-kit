@@ -1,0 +1,50 @@
+# Testnet soak configuration for the partially depleted validation wallet.
+# Keeps SOMI watched for market/risk visibility, but disables SOMI VolumeMill so
+# native gas/top-up balance is not used as test inventory during the soak.
+
+bot:
+  starting_capital_usd: 32.14
+  markets_to_watch:
+    - SOMI:USDso
+    - WETH:USDso
+    - WBTC:USDso
+
+bootstrap:
+  enabled: false
+
+strategies:
+  volume_mill:
+    enabled: true
+    markets:
+      - WETH:USDso
+    cycle_interval_sec: 4.0
+    size_per_cycle_usd: 4.00
+    size_per_cycle_usd_by_market:
+      WETH:USDso: "4.00"
+    max_inventory_imbalance_usd: 5.00
+    max_spread_bps: 100.0
+    min_side_depth_usd: 1.00
+    depth_usage_fraction: 0.50
+    ioc_cross_bps: 5.0
+
+  yield_maker:
+    enabled: false
+
+risk:
+  realized_loss:
+    max_loss_usd: 12.50
+  inventory_drift:
+    market: SOMI:USDso
+    max_drift_usd: 100.00
+    target_base_usd: 0.00
+    strategy: yield_maker
+    native_base_reserve_by_market:
+      SOMI:USDso: "125.00"
+  failed_tx_streak:
+    max_streak: 5
+  ws_staleness:
+    max_silence_sec: 60.0
+  open_orders_cap:
+    max_open: 8
+  max_drawdown:
+    max_drawdown_pct: 30.0

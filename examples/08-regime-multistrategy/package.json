@@ -1,0 +1,21 @@
+{
+  "name": "dreamdex-regime-multistrategy",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "start": "tsx src/bot.ts",
+    "dry": "cross-env DRY_RUN=1 tsx src/bot.ts",
+    "test": "tsx src/regime.test.ts"
+  },
+  "dependencies": {
+    "dotenv": "^16.4.5",
+    "ethers": "^6.13.0"
+  },
+  "devDependencies": {
+    "@types/node": "^22.7.0",
+    "cross-env": "^7.0.3",
+    "tsx": "^4.19.0",
+    "typescript": "^5.6.0"
+  }
+}

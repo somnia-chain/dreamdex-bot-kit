@@ -1,0 +1,243 @@
+# Mainnet configuration for dreamdex-bot.
+# Starts more conservatively than testnet for the first hour, then we can
+# bump aggressiveness once we've confirmed mainnet behavior matches testnet.
+
+bot:
+  # Drawdown baseline. Set to actual remaining session capital (~$49 wallet
+  # + locked collateral as of 2026-06-10), not the original 100 — half was
+  # burned by the taker mill before the maker pivot, and measuring drawdown
+  # against money that's already gone makes the max_drawdown rule a hair
+  # trigger (it kill-switched on a phantom -90% during a requote window).
+  # Raised to 25 (floor $5) 2026-06-13 for the 1M-milestone push: after a
+  # +$25 capital injection the wallet holds ~$27.43. Goal is 1M volume
+  # (~$20 of burn) while RETAINING USDso. The $5 drawdown floor is a safety
+  # net so an unattended overnight run can't drain capital to zero — at 1M
+  # the wallet still holds ~$7.30, comfortably above the floor. For the
+  # tightest USDso retention, manually suspend Render the moment the
+  # leaderboard reads 1,000,000 (locks in ~$7.30 exactly).
+  # Lowered to 15 (floor $3) 2026-06-14 for the SOMI-self-refuel finish: the
+  # 18bp SOMI cycles burn ~$3 extra, so a $5 floor would halt ~5K short of
+  # 1M. Floor $3 lets it reach 1M and stop with ~$3-4 USDso retained.
+  # 2026-06-16 04:35 — dropped to 5 (floor $1) on the final 1M approach:
+  # at ~$5.6 equity the old $3 floor would kill-switch ~2K short of 1M.
+  # Floor $1 leaves room to cross the milestone (+18.6K) and a bit beyond.
+  starting_capital_usd: 5.00
+  # Watch only markets we use. WETH + WBTC are milled (both ~2bp spread, each
+  # gated by its OWN momentum trend); SOMI is native-gas tracking for the
+  # min_native_somi floor. USDC.e (stable, banned) stays dropped — the Tier-1
+  # read cut still holds for it. WBTC re-added 2026-06-18 as a second uptrend
+  # venue so the bot routes capital to whichever of WETH/WBTC is actually rising.
+  markets_to_watch:
+    - WETH:USDso
+    - WBTC:USDso
+    - SOMI:USDso
+
+bootstrap:
+  enabled: false
+  # NOTE: main.py unions these into markets_to_watch even when bootstrap is
+  # disabled, so list only markets we actually use — otherwise WBTC sneaks back
+  # into the read fan-out the Tier-1 change removed. Kept = WETH + SOMI (gas).
+  candidate_markets:
+    - WETH:USDso
+    - WBTC:USDso
+    - SOMI:USDso
+  min_quote_balance_usd: "5.00"
+  target_quote_to_spend_usd: "3.00"
+  max_quote_fraction: "0.10"
+  reserve_quote_usd: "45.00"
+  min_base_value_usd: "1.00"
+  min_ask_depth_usd: "10.00"
+  max_spread_bps: "50.0"
+
+wallet_approvals:
+  # Reuse one ERC-20 allowance per pool/token instead of approving each cycle.
+  # This reduces on-chain tx count and gas usage for high-frequency trading.
+  mode: max
+
+unattended:
+  # 2026-06-20: dropped 1.00 -> 0.10. The 1.00 reserve existed to keep enough
+  # gas to BUY more SOMI at a stall — but USDso->SOMI is now broken on-chain
+  # (placeOrder native-base bug, trader-9's report, verified). So the 1 SOMI
+  # buffer can neither be spent nor used to refuel — it just strands while
+  # defending 4th. Drop to 0.10 to unlock ~0.9 SOMI (~$3,800 volume) of
+  # defensive runway; 0.10 still leaves room to flatten the final cycle.
+  min_native_somi: "0.10"
+  # Phase 2 survival mode: drain wallet to ~$1 (min quantity floor)
+  # instead of pausing at $1 USDso. The strategy already clamps each
+  # buy to 95% of available balance, so removing this floor doesn't
+  # risk negative balances — it just lets every remaining dollar work.
+  min_liquid_usdso: "0"
+  max_runtime_sec: 259200
+  max_submitted_orders: 60000
+  drawdown_confirmations: 10
+  # Phase 2: matches the post-Layer-2 ~3s/tx cadence so the inventory
+  # tracker stays fresh and IOC sells don't simulate-fail on stale state.
+  # Parallel asyncio.gather makes refresh cheap (~1s for 4 markets x 2 tokens).
+  balance_refresh_min_interval_sec: 2.0
+
+strategies:
+  volume_mill:
+    # CORRECTION 2026-06-10 night: the stablecoin-pair ban was NOT lifted —
+    # the earlier USDC.e config was a misread of the org's message. Back to
+    # WETH+WBTC, the allowed pairs with the tightest spreads (~2.0-2.1bp,
+    # 0.97bp realized burn measured on the milestone-1 run). SOMI:USDso was
+    # evaluated and rejected: 9.5-19bp spread makes it ~5-10x more expensive
+    # per volume dollar — it would cap the remaining $45 at ~50-95K volume.
+    # 5s cycles + full-balance sizing (95%-of-free clamp shares the balance
+    # across the two markets, effectively alternating full cycles).
+    enabled: true
+    # SOMI:USDso re-added 2026-06-11 morning (user request) after the gas
+    # exhaustion stall (native_somi_below_floor at 04:55). Known trade-offs
+    # from the first rotation: ~1.45bp blended burn (vs 0.97bp without) and
+    # a sell-skip ratchet that accumulates SOMI — which is now a FEATURE:
+    # leftover SOMI is native gas, so SOMI cycles keep the tank topped up
+    # and the mill becomes gas-self-sustaining. Bounded at $6/cycle, 12bp
+    # gate so it can't dominate the burn.
+    # FINAL CONFIG 2026-06-12: org requires SOMI:USDso activity, so it
+    # stays — bounded at $6/cycle behind a 12bp gate so WETH (0.92bp, the
+    # workhorse) carries the volume. WBTC dropped: its $6.3 min size is
+    # dead weight at a $10 bankroll. 4s cycles, runtime/order caps lifted
+    # to outlast the fuel, drawdown floor $2.
+    # Autonomy switch 2026-06-14 (~885K): SOMI:USDso re-added as a gas
+    # self-refuel leg so the run finishes to 1M without further org gas
+    # refills. WETH (2bp) carries the volume; SOMI ($5/cycle, 12bp gate)
+    # buys native SOMI back into the wallet to offset the ~2.2 SOMI/hr burn.
+    # Deploy this ONLY when the tank still holds ~1.5-2 SOMI (bootstrap room);
+    # at <0.4 SOMI the SOMI buys can't be sent. Costs ~$3 extra retention
+    # (18bp SOMI cycles), so 1M lands with ~$3-4 USDso vs ~$7 on org gas.
+    # 2026-06-15 final approach: SOMI removed again. The self-refuel's 18bp
+    # cycles were bleeding ~$0.4/bp extra; with 15.8 SOMI already banked,
+    # WETH-only (2bp) rides cheaply to ~991K. The 1.0 gas floor (below)
+    # leaves enough gas to buy the final ~9K of gas from USDso at the stall
+    # — avoiding the bootstrap trap and the org entirely. Lands ~1M, ~$4 kept.
+    markets:
+      - WETH:USDso
+      - WBTC:USDso
+    cycle_interval_sec: 4.0
+    size_per_cycle_usd: 2.00
+    size_per_cycle_usd_by_market:
+      WETH:USDso: "45.00"
+      WBTC:USDso: "45.00"
+      SOMI:USDso: "5.00"
+    # Efficiency floor (2026-06-17): pause buys once the cycle would drop below
+    # $10 instead of grinding to the ~$1.80 min-order. Leaderboard post-mortem:
+    # our $/fill was $13.67 vs the field's $22-35 — thousands of sub-$4 late
+    # cycles doubled our tx count (76K vs ~45K) for the SAME volume, burning
+    # ~2x the SOMI. Capital must stay >~$10.5 (order≈95% of free quote) to keep
+    # fills large; when it parks here, refuel USDso to resume. Tune higher for
+    # bigger fills (pauses sooner) or lower to spend more before pausing.
+    # 2026-06-20: dropped 10 -> 2 to DEFEND 4th. trader-6 woke up and is
+    # climbing; this lets capital fight all the way to the gas limit instead of
+    # parking ~$10 unused. Gas runs out at ~$10 capital anyway, so this unlocks
+    # ~5K more defensive volume at ~no real capital cost. Raise back once the
+    # rank is locked.
+    min_cycle_usd: "2.00"
+    # Momentum gate (2026-06-18): only open a buy cycle when WETH's recent trend
+    # is flat-to-up. Milling into a downtrend cost ~12bp (adverse selection) vs
+    # ~6-7bp flat — this halves the USDso bleed for the same (gas-limited) volume,
+    # so the remaining rank-chase volume is much cheaper on capital. Sells are
+    # never gated (a held position always flattens). min_change_bps=0 -> trade
+    # only when price is flat/rising over the 45s window; raise it positive for
+    # strict-uptrend-only (cheaper, less volume), lower it for more volume.
+    # 2026-06-18: set to +3 — skip the flat/weak-bounce zone (0..+3bps) that was
+    # buying failing bounces in a down market; mill only mild-to-strong uptrends.
+    # Applied PER MARKET, so each mill (WETH, WBTC) gates on its own trend and the
+    # bot routes capital to whichever pair is genuinely rising.
+    momentum_gate_enabled: true
+    momentum_lookback_sec: 45
+    momentum_min_change_bps: "3"
+    max_inventory_imbalance_usd: 80.00
+    # Only cycle at the 2bp spread floor; skip flickers and one-sided books.
+    max_spread_bps: 3.0
+    max_spread_bps_by_market:
+      SOMI:USDso: 12.0
+    min_side_depth_usd: 100.00
+    depth_usage_fraction: 0.50
+    ioc_cross_bps: 2.0
+    profit_aware_exit_enabled: false
+    take_profit_bps: 1.0
+    max_hold_sec: 45.0
+    entry_max_spread_bps: 3.0
+    native_base_reserve_by_market:
+      SOMI:USDso: "10.00"
+
+  yield_maker:
+    # Disabled 2026-06-10 evening. Live result over 12h / 4 deploys: ~$300
+    # of captured volume — the dominant maker won nearly every fill, so the
+    # $7.7K/h available flow never translated. Switched to the mill for
+    # reliable volume. Config (improve_ticks:1, flatten valve, $20 quotes)
+    # left intact for a future attempt with more capital / a quieter pair.
+    enabled: false
+    paper_mode: false
+    market: WETH:USDso
+    quote_mode: top_of_book
+    improve_ticks: 1
+    target_base_value_usd: 20.00
+    quote_size_usd: 20.00
+    min_book_spread_bps: 0.5
+    min_side_depth_usd: 100.00
+    min_half_spread_bps: 1
+    # Flatten valve: shed excess WETH via taker IOC back to target.
+    # INVARIANT (learned 2026-06-10, first live hour): inventory moves in
+    # quote_size ($20) jumps, so thresholds must respect the quantum —
+    #   valve in (target, target + quote_size]   → fires on the FIRST fill
+    #   pause cap > target + 2 × quote_size      → only a failed valve trips it
+    # The first deploy had valve 30 / cap 35 with $20 jumps: a second bid
+    # fill went $20 → $40 over both lines at once and the sticky pause
+    # bricked the strategy (risk evaluates before strategies each tick).
+    # Cost: ~2 bps on the excess slice above target, pennies per event.
+    flatten_above_usd: 25.00
+    flatten_cross_bps: 2.0
+    gamma: 0.5
+    k_vol: 2.0
+    requote_threshold_bps: 1.0
+    requote_min_interval_sec: 3.0
+    vol_window: 60
+    native_base_reserve_by_market:
+      SOMI:USDso: "10.00"
+
+# Phase 2 Finding 1 mitigation: the WS orderbook channel goes silently
+# stale per-symbol (documented twice: USDC.e Phase 1, USDC.e again 2026-06-09
+# during the live maker test — quotes sat 5 bps off the real BBO with zero
+# fills). The engine polls REST and replaces the in-memory book whenever the
+# BBO disagrees by more than max_drift_bps. Without this, maker quoting
+# silently produces nothing; do not disable while yield_maker is enabled.
+book_reconcile:
+  enabled: true
+  interval_sec: 4.0
+  max_drift_bps: 1.5
+  # Idle state reconciliation: if no tx has fired for idle_after_sec, re-read
+  # balances + open orders and clear strategy quote-tracking for orders that
+  # vanished (missed fill/cancel WS event). Without this the maker silently
+  # wedged 3x on 2026-06-10 — believing it was quoting while holding nothing.
+  # idle_miss_threshold: require the order missing on N consecutive polls
+  # before dropping it, so the flaky open-orders listing (Finding 11) can't
+  # clear a genuinely-resting quote.
+  idle_after_sec: 45.0
+  idle_miss_threshold: 2
+
+risk:
+  realized_loss:
+    max_loss_usd: 90.00          # Phase 2: burn capital for volume milestones
+  inventory_drift:
+    # Police the WETH maker: pause it if WETH holdings leave [-0.5, 60.5] USD.
+    # The cap MUST clear target + 2 × quote_size (20 + 40 = 60): inventory
+    # moves in $20 fill-quanta and the flatten valve (fires at $25, sells
+    # back to $20) needs room to act before this sticky pause does. The
+    # pause now only fires if the valve failed twice in a row — and when it
+    # fires, the engine cancels all resting orders (pause-cancel fix).
+    enabled: true
+    market: WETH:USDso
+    max_drift_usd: 30.50
+    target_base_usd: 30.00
+    strategy: yield_maker
+    native_base_reserve_by_market:
+      SOMI:USDso: "10.00"
+  failed_tx_streak:
+    max_streak: 3                # More paranoid on mainnet
+  ws_staleness:
+    max_silence_sec: 45.0
+  open_orders_cap:
+    max_open: 6
+  max_drawdown:
+    max_drawdown_pct: 80.0

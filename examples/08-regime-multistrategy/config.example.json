@@ -1,0 +1,59 @@
+{
+  "pairs": [
+    "WETH/USDso",
+    "WBTC/USDso"
+  ],
+  "makerPairs": [],
+  "liquidatePairs": [],
+  "gasReserveSOMI": 50,
+  "capitalUSDso": 150,
+  "perPairClipUSDso": 40,
+  "requoteMs": 6000,
+  "maxInventoryUSDso": 70,
+  "maxDrawdownPct": 90,
+  "gasFloorSOMI": 4,
+  "modules": {
+    "growth": false,
+    "volume": true,
+    "pickoff": false,
+    "grid": false
+  },
+  "oscillator": false,
+  "equityFloorUSDso": 12,
+  "floorHysteresisUSDso": 2,
+  "leadTicks": 1,
+  "makerSpreadBps": 0,
+  "minEdgeBps": 30,
+  "softInventoryUSDso": 3,
+  "hardInventoryUSDso": 85,
+  "takerFlattenThrottleSec": 30,
+  "maxIdleSec": 1200,
+  "quoteHeartbeatSec": 900,
+  "gridLevels": 4,
+  "gridStepBps": 5,
+  "growthSpreadBps": 6,
+  "growthImproveFrac": 0.15,
+  "inventorySkewBps": 18,
+  "pickoffEdgeBps": 10,
+  "vaultDepositUSDso": 0,
+  "minQuoteUSDso": 20,
+  "flattenFirst": false,
+  "flattenTargetUSDso": 8,
+  "requoteMoveBps": 8,
+  "volumePaceSec": 7,
+  "takerMaxSpreadBps": 2.5,
+  "regime": {
+    "cautionDrawdownPct": 50,
+    "defensiveDrawdownPct": 70,
+    "cautionClipMult": 0.6,
+    "defensiveClipMult": 0.3
+  },
+  "pegTolerancePct": 2,
+  "programDays": 14,
+  "dynamicAllocation": false,
+  "dashboardPort": 3000,
+  "tokens": {
+    "USDso": "0x00000022dA000002656c64D9eA6011ea952D008A",
+    "SOMI": "native"
+  }
+}

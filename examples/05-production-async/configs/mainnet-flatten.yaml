@@ -1,0 +1,51 @@
+bot:
+  starting_capital_usd: 50.00
+  markets_to_watch:
+    - SOMI:USDso
+    - WETH:USDso
+    - WBTC:USDso
+
+bootstrap:
+  enabled: false
+
+strategies:
+  volume_mill:
+    enabled: true
+    markets:
+      - SOMI:USDso
+      - WETH:USDso
+      - WBTC:USDso
+    cycle_interval_sec: 1.0
+    size_per_cycle_usd: "0.00"
+    size_per_cycle_usd_by_market:
+      SOMI:USDso: "0.00"
+      WETH:USDso: "0.00"
+      WBTC:USDso: "0.00"
+    max_inventory_imbalance_usd: "0.01"
+    max_spread_bps: 75.0
+    min_side_depth_usd: 2.50
+    depth_usage_fraction: 0.95
+    ioc_cross_bps: 5.0
+    native_base_reserve_by_market:
+      SOMI:USDso: "10.00"
+  yield_maker:
+    enabled: false
+
+risk:
+  realized_loss:
+    max_loss_usd: "12.50"
+  inventory_drift:
+    market: SOMI:USDso
+    max_drift_usd: "10.00"
+    target_base_usd: "12.50"
+    strategy: yield_maker
+    native_base_reserve_by_market:
+      SOMI:USDso: "10.00"
+  failed_tx_streak:
+    max_streak: 5
+  ws_staleness:
+    max_silence_sec: 60.0
+  open_orders_cap:
+    max_open: 8
+  max_drawdown:
+    max_drawdown_pct: "30.0"

@@ -1,0 +1,6 @@
+.secret.env
+*.key
+keystore/
+__pycache__/
+*.log
+.env

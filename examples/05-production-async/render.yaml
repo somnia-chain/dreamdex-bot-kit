@@ -1,0 +1,17 @@
+services:
+  - type: worker
+    name: dreamdex-volume-worker
+    runtime: python
+    plan: starter
+    numInstances: 1
+    buildCommand: pip install -e .
+    startCommand: python -m bots.main --config configs/mainnet.yaml
+    autoDeployTrigger: off
+    maxShutdownDelaySeconds: 120
+    envVars:
+      - key: NETWORK
+        value: mainnet
+      - key: WALLET_ADDRESS
+        sync: false
+      - key: PRIVATE_KEY
+        sync: false

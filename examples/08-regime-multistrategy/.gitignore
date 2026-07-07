@@ -1,0 +1,7 @@
+node_modules/
+.env
+config.json
+*.log
+dreamdex-logs*.txt
+_snapshot_base.json
+STOPPED

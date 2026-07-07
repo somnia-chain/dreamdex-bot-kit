@@ -1,0 +1,34 @@
+{
+  "name": "dreamdex-edge-analytics",
+  "version": "0.1.0",
+  "description": "Measure whether a DreamDEX maker actually has an edge: captured spread vs adverse selection vs gas (transactions-per-fill), from your own fills.",
+  "type": "module",
+  "engines": {
+    "node": ">=18"
+  },
+  "scripts": {
+    "start": "tsx src/index.ts",
+    "analyze": "tsx src/index.ts",
+    "build": "tsc",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run",
+    "test:watch": "vitest"
+  },
+  "keywords": [
+    "dreamdex",
+    "somnia",
+    "market-making",
+    "adverse-selection",
+    "markout",
+    "microstructure",
+    "backtest",
+    "analytics"
+  ],
+  "license": "MIT",
+  "devDependencies": {
+    "@types/node": "^22.9.0",
+    "tsx": "^4.19.2",
+    "typescript": "^5.7.0",
+    "vitest": "^2.1.6"
+  }
+}
