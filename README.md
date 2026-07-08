@@ -22,6 +22,7 @@ competition.
 | [`advanced/batch-7702`](advanced/batch-7702) | A **technique demo** (not a trading strategy): how to use EIP-7702 to batch multiple actions into a single transaction. |
 | [`tools/edge-analytics`](tools/edge-analytics) | An **analysis tool** (not a bot): measures whether a maker actually has an edge — captured spread vs adverse selection vs transactions-per-fill — from your own fills. Methodology in [docs/measuring-edge.md](docs/measuring-edge.md). |
 | [`examples/`](examples) | The real competition bots, sanitized to core code. Different architectures, languages, and tricks — read them to see how people actually did it. |
+| [`skills/`](skills) | [Agent Skills](skills) so an AI coding agent can build DreamDEX bots with the right context: a general [`somnia`](skills/somnia) skill and a [`dreamdex-bot`](skills/dreamdex-bot) skill (the core API, gotchas, and session keys). |
 
 ## The one thing to know before you start
 
