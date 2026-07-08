@@ -1,4 +1,4 @@
-# DreamDEX Bot Kit
+# dreamBot Kit
 
 Build automated trading bots on [DreamDEX](https://docs.dreamdex.io) — the on-chain
 central-limit order book (CLOB) on [Somnia](https://somnia.network). This kit gives you a
