@@ -61,6 +61,17 @@ export class Pool {
     return { publicClient: this.ctx.publicClient, walletClient: this.ctx.walletClient, account: this.ctx.account };
   }
 
+  /**
+   * Whose position this is. In session-key mode the signer is the OPERATOR, but
+   * orders are placed for — and fills settle to — the OWNER. Every read about
+   * "our" balance or orders must therefore be scoped to the owner, not the signer,
+   * exactly as `place()` / `cancel()` route to the `*For` variants below.
+   * Without an owner set, this is the signer, so the default path is unchanged.
+   */
+  private get subject(): `0x${string}` {
+    return this.ctx.owner ?? this.ctx.account.address;
+  }
+
   /** Human-unit tick / lot / min for sizing decisions. */
   get tick(): number { return fromRaw(this.params.tickSize, this.quoteDecimals); }
   get lot(): number { return fromRaw(this.params.lotSize, this.baseDecimals); }
@@ -104,11 +115,13 @@ export class Pool {
   }
 
   async openOrderIds(): Promise<bigint[]> {
+    // `getOwnOpenOrders` is msg.sender-scoped, but this is a read-only eth_call —
+    // `from` costs nothing to set, so an operator can read the owner's orders.
     const ids = await this.ctx.publicClient.readContract({
       address: this.address,
       abi: SPOT_POOL_ABI,
       functionName: "getOwnOpenOrders",
-      account: this.ctx.account,
+      account: this.subject,
     });
     return [...ids];
   }
@@ -116,7 +129,7 @@ export class Pool {
   /** Withdrawable vault balance of the base side (uses the native sentinel for native pools). */
   async vaultBase(): Promise<number> {
     const token = this.baseIsNative ? (NATIVE_SENTINEL as `0x${string}`) : this.params.baseToken;
-    const raw = await readWithdrawableBalance(this.ctx.publicClient, this.address, this.ctx.account.address, token);
+    const raw = await readWithdrawableBalance(this.ctx.publicClient, this.address, this.subject, token);
     return fromRaw(raw, this.baseDecimals);
   }
 
@@ -126,17 +139,20 @@ export class Pool {
    * settle to the wallet (the vault reads ~0), so THIS is the number that
    * reflects live inventory for skew/hedging. Use `vaultBase()` only when you
    * run the market in manual-vault mode (`setManualVaultMode(true)`).
+   *
+   * In session-key mode this is the OWNER's wallet — fills settle to them, not
+   * to the operator signing the transaction.
    */
   async walletBase(): Promise<number> {
     if (this.baseIsNative) {
-      const raw = await this.ctx.publicClient.getBalance({ address: this.ctx.account.address });
+      const raw = await this.ctx.publicClient.getBalance({ address: this.subject });
       return fromRaw(raw, this.baseDecimals);
     }
     const raw = await this.ctx.publicClient.readContract({
       address: this.params.baseToken,
       abi: ERC20_ABI,
       functionName: "balanceOf",
-      args: [this.ctx.account.address],
+      args: [this.subject],
     });
     return fromRaw(raw, this.baseDecimals);
   }
