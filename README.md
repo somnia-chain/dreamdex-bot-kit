@@ -17,7 +17,7 @@ competition.
 | Path | What it is |
 | --- | --- |
 | [`packages/core`](packages/core) | Shared client — auth, REST, WebSocket, order execution, gotcha guards, nonce manager. TypeScript **and** Python. Every strategy imports it. |
-| [`strategies/`](strategies) | Five runnable strategies: [market-making](strategies/market-making), [grid](strategies/grid), [momentum](strategies/momentum), [mean-reversion](strategies/mean-reversion), and [twap](strategies/twap) (execution algo). Each is clone → configure → run, with its own README explaining the trade-offs. |
+| [`strategies/`](strategies) | Start with [`starter`](strategies/starter) — the simplest bot, where you edit one `decide()` function. Then five full strategies: [market-making](strategies/market-making), [grid](strategies/grid), [momentum](strategies/momentum), [mean-reversion](strategies/mean-reversion), and [twap](strategies/twap) (execution algo). Each is clone → configure → run, with its own README explaining the trade-offs. |
 | [`docs/`](docs) | The bot-specific knowledge the protocol docs don't cover: [getting started](docs/getting-started.md), [architecture](docs/architecture.md), [gotchas](docs/gotchas.md), [running 24/7](docs/24-7-operations.md), [session keys](docs/session-keys.md) (run a bot with a hot key that can't withdraw funds). |
 | [`advanced/batch-7702`](advanced/batch-7702) | A **technique demo** (not a trading strategy): how to use EIP-7702 to batch multiple actions into a single transaction. |
 | [`tools/edge-analytics`](tools/edge-analytics) | An **analysis tool** (not a bot): measures whether a maker actually has an edge — captured spread vs adverse selection vs transactions-per-fill — from your own fills. Methodology in [docs/measuring-edge.md](docs/measuring-edge.md). |
@@ -44,6 +44,22 @@ uses this modern signature. See [docs/architecture.md](docs/architecture.md) for
 model and [docs/gotchas.md](docs/gotchas.md) for the full list of things that will bite you.
 
 ## Quick start
+
+**Fastest path — a bot running in ~60s:**
+
+```bash
+git clone <this repo> && cd dreamdex-bot-kit
+npm install
+npm run quickstart                # 3 questions → writes a safe dry-run .env
+npm run dev -w starter            # runs in DRY_RUN: logs orders, sends nothing
+```
+
+`quickstart` defaults to the [`starter`](strategies/starter) strategy — the
+simplest bot, where you edit **one function** (`decide()`) and the harness does
+the rest. Watch the dry-run logs, then edit `.env` to add your own funded key and
+set `DRY_RUN=false`.
+
+**Manual setup** (any strategy):
 
 ```bash
 git clone <this repo> && cd dreamdex-bot-kit

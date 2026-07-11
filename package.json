@@ -13,6 +13,7 @@
     "node": ">=20"
   },
   "scripts": {
+    "quickstart": "node scripts/quickstart.mjs",
     "build": "npm run build -w @dreamdex-bot-kit/core",
     "typecheck": "npm run build && npm run typecheck --workspaces --if-present"
   }
