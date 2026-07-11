@@ -8,8 +8,10 @@ efficient, capital-preserving way to earn volume (and maker rewards) on DreamDEX
 The leaderboard ranks by volume, but every round-trip you take costs the spread + fees. If you
 generate volume as a **taker**, you bleed. The winning move is to be the **maker**:
 
-1. **Quote a low-risk pair.** Default is `USDC.e:USDso` — a stable/stable pair pinned near
-   `1.0000`, so you carry almost no price risk between fills.
+1. **Quote a low-risk pair.** The default is `SOMI:USDso` (it exists on both testnet and
+   mainnet, so it runs out of the box). On **mainnet**, `USDC.e:USDso` is even lower-risk — a
+   stable/stable pair pinned near `1.0000`, so you carry almost no price risk between fills; set
+   `MM_SYMBOL=USDC.e:USDso` there.
 2. **Rest on both sides.** Post a bid below mid and an ask above mid with `PostOnly` (which is
    rejected rather than filled if it would cross, so you never accidentally take). When someone
    lifts your quote, *they* pay the spread to *you*, and you earn volume at near-zero — often
@@ -45,7 +47,7 @@ python -m bot
 
 | Env | Meaning |
 | --- | --- |
-| `MM_SYMBOL` | Market to quote (default `USDC.e:USDso`). |
+| `MM_SYMBOL` | Market to quote (default `SOMI:USDso`; on mainnet, `USDC.e:USDso` is lower-risk). |
 | `MM_HALF_SPREAD_BPS` | Distance from mid to each quote. Total spread is 2×. |
 | `MM_NOTIONAL_USDSO` | Size per quote, in USDso. |
 | `MM_TARGET_INVENTORY_USDSO` | Base inventory (in quote terms) the skew pulls toward. |

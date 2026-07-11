@@ -28,8 +28,10 @@ function bool(key: string, fallback: boolean): boolean {
 }
 
 export const config = {
-  /** Which market to quote. USDC.e:USDso (a stable/stable pair) is the low-risk default. */
-  symbol: str("MM_SYMBOL", "USDC.e:USDso"),
+  /** Which market to quote. SOMI:USDso exists on both mainnet and testnet, so it
+   *  works out of the box. On mainnet, the stable/stable USDC.e:USDso is a lower
+   *  inventory-risk choice — set MM_SYMBOL to it there. */
+  symbol: str("MM_SYMBOL", "SOMI:USDso"),
   /** Half-spread each side of mid, in bps. Total quoted spread = 2× this. */
   halfSpreadBps: num("MM_HALF_SPREAD_BPS", 5),
   /** Order size, in quote (USDso) notional per side. */

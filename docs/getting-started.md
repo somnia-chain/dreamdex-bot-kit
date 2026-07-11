@@ -44,7 +44,9 @@ DreamDEX has two funding models (details in [architecture.md](architecture.md)):
   Only needed for specific market-making setups.
 
 You need the **base** or **quote** token of the market you want to trade, plus native **SOMI**
-for gas. For a stable pair like `USDC.e:USDso` you'll want some USDso to start.
+for gas. The strategies default to `SOMI:USDso` (available on both testnet and mainnet), so on
+testnet you mainly need SOMI. On mainnet, a stable/stable pair like `USDC.e:USDso` is a lower-risk
+place to start (hold some USDso). Testnet markets are `SOMI:USDso`, `WETH:USDso`, and `WBTC:USDso`.
 
 ## 5. Run
 
