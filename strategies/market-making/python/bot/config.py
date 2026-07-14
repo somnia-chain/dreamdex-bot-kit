@@ -27,7 +27,7 @@ def _bool(key: str, fallback: bool) -> bool:
 
 
 class Config:
-    symbol = _str("MM_SYMBOL", "USDC.e:USDso")
+    symbol = _str("MM_SYMBOL", "SOMI:USDso")
     half_spread_bps = _num("MM_HALF_SPREAD_BPS", 5)
     notional_usdso = _num("MM_NOTIONAL_USDSO", 20)
     target_inventory_usdso = _num("MM_TARGET_INVENTORY_USDSO", 0)
