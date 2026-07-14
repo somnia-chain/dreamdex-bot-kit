@@ -15,7 +15,7 @@
   },
   "dependencies": {
     "dotenv": "^16.4.5",
-    "viem": "^2.21.0",
+    "viem": "^2.54.6",
     "ws": "^8.18.0"
   },
   "devDependencies": {

@@ -11,7 +11,7 @@
     "@dreamdex-bot-kit/core": "*",
     "dotenv": "^16.4.5",
     "solc": "^0.8.26",
-    "viem": "^2.30.0"
+    "viem": "^2.54.6"
   },
   "devDependencies": {
     "@types/node": "^20.14.0",
