@@ -25,6 +25,11 @@ npm run dev -w mean-reversion     # DRY_RUN=true — logs signals, sends nothing
 Use a pair that oscillates (`WETH:USDso`, `SOMI:USDso`), not a stable pair — on a peg it will
 (correctly) almost never trigger.
 
+Expect quiet stretches: RSI and the Bollinger bands need `max(MR_RSI_PERIOD + 1, MR_BB_PERIOD)`
+samples before there's any signal (~100s at the defaults), and then it waits to be oversold. A
+status line every 30s shows the warm-up count and current RSI vs the entry threshold, so you can
+tell "waiting" apart from "stuck" (`STATUS_LOG_MS` to change, `0` to silence).
+
 ## Configuration
 
 | Env | Meaning |

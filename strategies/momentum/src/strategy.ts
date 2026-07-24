@@ -18,7 +18,7 @@
 // and out quickly on a real move — so sizing and the TP/SL discipline matter
 // more here than in the passive strategies.
 
-import { Pool, ORDER_TYPE, shiftBps } from "@dreamdex-bot-kit/core";
+import { Pool, ORDER_TYPE, shiftBps, createStatusLogger } from "@dreamdex-bot-kit/core";
 import type { Config } from "./config.js";
 
 interface Position {
@@ -30,25 +30,42 @@ export class Momentum {
   private mids: number[] = [];
   private position?: Position;
 
+  /** Throttled "here's what I'm waiting for" line — see core/status.ts. */
+  private readonly status: (msg: string) => void;
+
   constructor(
     private readonly pool: Pool,
     private readonly cfg: Config,
     private readonly log: (msg: string, extra?: unknown) => void,
-  ) {}
+  ) {
+    this.status = createStatusLogger(log);
+  }
 
   async tick(): Promise<void> {
     const { bestBid, bestAsk, mid } = await this.pool.topOfBook();
-    if (mid === undefined || bestBid === undefined || bestAsk === undefined) return;
+    if (mid === undefined || bestBid === undefined || bestAsk === undefined) {
+      this.status("one-sided or empty book — waiting for quotes");
+      return;
+    }
 
     this.mids.push(mid);
     if (this.mids.length > this.cfg.windowSize) this.mids.shift();
-    if (this.mids.length < this.cfg.windowSize) return; // warming up
+    if (this.mids.length < this.cfg.windowSize) {
+      // Warming up: the window has to fill before momentum means anything.
+      this.status(`warming up ${this.mids.length}/${this.cfg.windowSize} samples — no signal yet`);
+      return;
+    }
 
     const momentum = this.momentum();
 
     if (this.position) {
       // Exit on TP, SL, or momentum fading.
       const pnlPct = (mid - this.position.entry) / this.position.entry;
+      this.status(
+        `long ${this.position.qty.toFixed(6)} from ${this.position.entry.toFixed(6)} | pnl ${(pnlPct * 100).toFixed(2)}%` +
+          ` | exit at +${(this.cfg.takeProfitPct * 100).toFixed(2)}% / -${(this.cfg.stopLossPct * 100).toFixed(2)}%` +
+          ` or momentum ≤ ${(this.cfg.exitMomentum * 100).toFixed(2)}% (now ${(momentum * 100).toFixed(2)}%)`,
+      );
       if (pnlPct >= this.cfg.takeProfitPct) return this.exit(bestBid, `take-profit ${(pnlPct * 100).toFixed(2)}%`);
       if (pnlPct <= -this.cfg.stopLossPct) return this.exit(bestBid, `stop-loss ${(pnlPct * 100).toFixed(2)}%`);
       if (momentum <= this.cfg.exitMomentum) return this.exit(bestBid, `momentum faded ${(momentum * 100).toFixed(2)}%`);
@@ -57,6 +74,11 @@ export class Momentum {
 
     // Enter long on a confirmed up-move that's also breaking the window high.
     const breakout = mid >= Math.max(...this.mids) * 0.999;
+    this.status(
+      `mid=${mid.toFixed(6)} momentum ${(momentum * 100).toFixed(2)}%` +
+        ` (need ≥ ${(this.cfg.entryMomentum * 100).toFixed(2)}%)` +
+        ` breakout=${breakout ? "yes" : "no"} — flat, waiting to enter`,
+    );
     if (momentum >= this.cfg.entryMomentum && breakout) {
       await this.enter(bestAsk, momentum);
     }

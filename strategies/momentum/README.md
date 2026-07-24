@@ -27,6 +27,11 @@ npm run dev -w momentum           # DRY_RUN=true — logs signals, sends nothing
 Momentum works best on a pair that actually moves — `WETH:USDso` or `SOMI:USDso`, not a stable
 pair. On a stable pair it will (correctly) almost never trigger.
 
+Expect quiet stretches: the window has to fill (`MOM_WINDOW_SIZE` × `MOM_INTERVAL_MS`, ~100s by
+default) before there's any signal at all, and then it waits for a real move. A status line
+every 30s shows the warm-up count and current momentum vs the entry threshold, so you can tell
+"waiting" apart from "stuck" (`STATUS_LOG_MS` to change, `0` to silence).
+
 ## Configuration
 
 | Env | Meaning |

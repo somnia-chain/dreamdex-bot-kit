@@ -23,7 +23,7 @@
 // "stuck lot" timeout that cuts a position that can't reach its sell trigger and
 // re-anchors, so the grid doesn't freeze holding inventory in a trend.
 
-import { Pool, ORDER_TYPE, shiftBps, spreadBps } from "@dreamdex-bot-kit/core";
+import { Pool, ORDER_TYPE, shiftBps, spreadBps, createStatusLogger } from "@dreamdex-bot-kit/core";
 import type { Config } from "./config.js";
 
 interface Lot {
@@ -37,18 +37,29 @@ export class Grid {
   private realizedPnl = 0;
   private stuckSince?: number;
 
+  /** Throttled "here's what I'm waiting for" line — see core/status.ts. */
+  private readonly status: (msg: string) => void;
+
   constructor(
     private readonly pool: Pool,
     private readonly cfg: Config,
     private readonly log: (msg: string, extra?: unknown) => void,
-  ) {}
+  ) {
+    this.status = createStatusLogger(log);
+  }
 
   async tick(): Promise<void> {
     const { bestBid, bestAsk, mid } = await this.pool.topOfBook();
-    if (mid === undefined) return;
+    if (mid === undefined) {
+      this.status("empty book — nothing to trade against yet");
+      return;
+    }
     if (this.anchor === undefined) this.anchor = mid;
 
     if (bestBid !== undefined && bestAsk !== undefined && spreadBps(bestBid, bestAsk) > this.cfg.maxSpreadBps) {
+      this.status(
+        `book spread ${spreadBps(bestBid, bestAsk).toFixed(1)}bps > max ${this.cfg.maxSpreadBps}bps — sitting out`,
+      );
       return; // dislocated book — sit out
     }
 
@@ -57,6 +68,13 @@ export class Grid {
     const sellTrigger = shiftBps(this.lots[0]?.price ?? this.anchor, +this.cfg.stepBps);
     const inventoryUsdso = this.baseHeld() * mid;
     const qty = this.cfg.lotUsdso / mid;
+
+    this.status(
+      `mid=${mid.toFixed(6)} anchor=${this.anchor.toFixed(6)} | buy when ask ≤ ${buyTrigger.toFixed(6)}` +
+        ` | ${this.lots.length} lot(s), sell when bid ≥ ${sellTrigger.toFixed(6)}` +
+        ` | inventory $${inventoryUsdso.toFixed(2)} realized $${this.realizedPnl.toFixed(2)}` +
+        (offloadOnly ? " | session stop hit — offload only" : ""),
+    );
 
     // ── SELL: oldest lot's target crossed by the best bid ──────────────────
     if (this.lots.length > 0 && bestBid !== undefined && bestBid >= sellTrigger) {

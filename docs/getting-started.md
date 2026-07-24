@@ -57,6 +57,19 @@ sending a transaction. Watch it for a while, then flip `DRY_RUN=false`.
 npm run dev -w market-making      # or grid / momentum
 ```
 
+**A quiet bot is not a broken bot.** `starter`, `market-making` and `twap` act every tick, so
+they log constantly. `grid`, `momentum` and `mean-reversion` only act when the market gives
+them a reason to — a grid step has to be crossed, an indicator window has to fill. Those three
+print a status line every 30s saying what they're seeing and what they're waiting for:
+
+```
+[grid …] mid=0.099550 anchor=0.099550 | buy when ask ≤ 0.099251 | 0 lot(s), sell when bid ≥ 0.099849 | inventory $0.00 realized $0.00
+[momentum …] warming up 7/20 samples — no signal yet
+```
+
+Change the interval with `STATUS_LOG_MS` (ms), or set `STATUS_LOG_MS=0` to turn the lines off.
+Real events (orders, fills, errors) are never throttled.
+
 For Python strategies:
 
 ```bash
