@@ -107,7 +107,8 @@ behalf. Grant per-selector permissions via the OperatorPermissionsRegistry;
 
 Ready-to-adapt strategies on top of core (in `strategies/`): **market-making**
 (PostOnly two-sided with inventory skew; TS + Python), **grid**, **momentum**,
-**twap**, **mean-reversion**. Each has its own README and env knobs (e.g.
+**twap**, **mean-reversion**, **multi-strategy-ai** (modular ensemble + optional
+LLM). Each has its own README and env knobs (e.g.
 `MM_SYMBOL`, `MM_HALF_SPREAD_BPS`, `MM_NOTIONAL_USDSO`, `MM_INVENTORY_SKEW_BPS`).
 Advanced: `advanced/batch-7702` (EIP-7702 transaction batching).
 
