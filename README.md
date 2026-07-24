@@ -17,7 +17,7 @@ competition.
 | Path | What it is |
 | --- | --- |
 | [`packages/core`](packages/core) | Shared client — auth, REST, WebSocket, order execution, gotcha guards, nonce manager. TypeScript **and** Python. Every strategy imports it. |
-| [`strategies/`](strategies) | Start with [`starter`](strategies/starter) — the simplest bot, where you edit one `decide()` function. Then five full strategies: [market-making](strategies/market-making), [grid](strategies/grid), [momentum](strategies/momentum), [mean-reversion](strategies/mean-reversion), and [twap](strategies/twap) (execution algo). Each is clone → configure → run, with its own README explaining the trade-offs. |
+| [`strategies/`](strategies) | Start with [`starter`](strategies/starter) — the simplest bot, where you edit one `decide()` function. Then full strategies: [market-making](strategies/market-making), [grid](strategies/grid), [momentum](strategies/momentum), [mean-reversion](strategies/mean-reversion), [twap](strategies/twap) (execution algo), and [multi-strategy-ai](strategies/multi-strategy-ai) (modular ensemble + optional LLM). Each is clone → configure → run, with its own README explaining the trade-offs. |
 | [`docs/`](docs) | The bot-specific knowledge the protocol docs don't cover: [getting started](docs/getting-started.md), [architecture](docs/architecture.md), [gotchas](docs/gotchas.md), [running 24/7](docs/24-7-operations.md), [session keys](docs/session-keys.md) (run a bot with a hot key that can't withdraw funds). |
 | [`advanced/batch-7702`](advanced/batch-7702) | A **technique demo** (not a trading strategy): how to use EIP-7702 to batch multiple actions into a single transaction. |
 | [`tools/edge-analytics`](tools/edge-analytics) | An **analysis tool** (not a bot): measures whether a maker actually has an edge — captured spread vs adverse selection vs transactions-per-fill — from your own fills. Methodology in [docs/measuring-edge.md](docs/measuring-edge.md). |
@@ -79,7 +79,7 @@ Then run a bot. Every strategy defaults to **`DRY_RUN=true`** — it logs exactl
 do without sending anything. Watch it, then set `DRY_RUN=false` in `.env` to go live:
 
 ```bash
-npm run dev -w market-making      # or: grid · momentum · mean-reversion · twap
+npm run dev -w market-making      # or: grid · momentum · mean-reversion · twap · multi-strategy-ai
 ```
 
 **Python** (same strategies, on the Python core):

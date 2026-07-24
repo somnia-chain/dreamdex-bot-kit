@@ -34,6 +34,7 @@ const STRATEGIES = {
   momentum: { symbolVar: "MOM_SYMBOL", defaultSymbol: "WETH:USDso" },
   "mean-reversion": { symbolVar: "MR_SYMBOL", defaultSymbol: "WETH:USDso" },
   twap: { symbolVar: "TWAP_SYMBOL", defaultSymbol: "SOMI:USDso" },
+  "multi-strategy-ai": { symbolVar: "SYMBOL", defaultSymbol: "WETH:USDso" },
 };
 
 function parseFlags(argv) {
