@@ -37,6 +37,11 @@ cp .env.example .env              # PRIVATE_KEY, NETWORK=testnet
 npm run dev -w grid               # DRY_RUN=true — logs decisions, sends nothing
 ```
 
+Expect quiet stretches: nothing happens until price crosses a trigger, which at the default
+`GRID_STEP_BPS=30` means a move of the step plus half the book spread. A status line every 30s
+shows the current mid, the anchor, and both triggers, so you can tell "waiting" apart from
+"stuck" (`STATUS_LOG_MS` to change, `0` to silence).
+
 ## Configuration
 
 | Env | Meaning |

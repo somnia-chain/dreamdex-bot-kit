@@ -31,6 +31,10 @@ Env vars read by core: `PRIVATE_KEY` (funded key), `NETWORK` (`testnet` |
 `mainnet`), optional `RPC_URL`, optional `OWNER_ADDRESS` (session-key mode, below).
 Every strategy defaults to `DRY_RUN=true`; flip to `false` only after watching it.
 
+`grid`, `momentum` and `mean-reversion` are signal-driven — they can sit idle for minutes
+before acting, which is correct, not broken. They print a throttled status line (every
+`STATUS_LOG_MS`, default 30000; `0` disables) with what they see and what they wait for.
+
 ## Core API
 
 ```ts

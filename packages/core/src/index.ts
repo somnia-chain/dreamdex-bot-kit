@@ -28,3 +28,4 @@ export * from "./pool.js";
 export * from "./nonce.js";
 export * from "./gotchas.js";
 export * from "./quant.js";
+export * from "./status.js";
