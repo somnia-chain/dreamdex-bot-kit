@@ -13,7 +13,6 @@
 // right to place/cancel orders. The operator key then runs the bot and can never
 // move funds out (deposits/withdrawals/approvals are owner-scoped; fills settle
 // to the owner). See docs/session-keys.md.
-//
 // These are called by the fund key (a ChainContext built from the fund key).
 
 import type { PublicClient } from "viem";
@@ -41,8 +40,49 @@ export async function depositVault(ctx: ChainContext, pool: `0x${string}`, token
   return send(ctx, await ctx.walletClient.writeContract({ address: pool, abi: SPOT_POOL_ABI, functionName: "deposit", args: [token, amountRaw], account: ctx.account, chain: ctx.walletClient.chain }));
 }
 
+/** Withdraw from vault with pre-flight balance check and simulation.
+ *  Reads on-chain withdrawable balance first, then simulates to prevent silent failures. */
 export async function withdrawVault(ctx: ChainContext, pool: `0x${string}`, token: `0x${string}`, amountRaw: bigint): Promise<`0x${string}`> {
-  return send(ctx, await ctx.walletClient.writeContract({ address: pool, abi: SPOT_POOL_ABI, functionName: "withdraw", args: [token, amountRaw], account: ctx.account, chain: ctx.walletClient.chain }));
+  // 1. Pre-flight: read actual withdrawable balance on-chain before signing.
+  const available = await ctx.publicClient.readContract({
+    address: pool,
+    abi: SPOT_POOL_ABI,
+    functionName: "getWithdrawableBalance",
+    args: [ctx.account.address, token],
+  });
+  if (amountRaw > available) {
+    throw new Error(`withdrawVault: requested ${amountRaw} but withdrawable balance is ${available}`);
+  }
+
+  // 2. Simulate the withdraw call before broadcasting.
+  const sim = await ctx.publicClient.simulateContract({
+    address: pool,
+    abi: SPOT_POOL_ABI,
+    functionName: "withdraw",
+    args: [token, amountRaw],
+    account: ctx.account,
+  });
+  const [ok] = sim.result;
+  if (!ok) {
+    throw new Error("withdrawVault: simulation failed (would revert on-chain)");
+  }
+
+  // 3. Broadcast the simulated transaction.
+  return send(ctx, await ctx.walletClient.writeContract({ ...sim.request, chain: ctx.walletClient.chain, account: ctx.account }));
+}
+
+/** Per pool: draw from / settle to the vault instead of the wallet (required for clean operator custody). */
+export async function setManualVaultMode(ctx: ChainContext, pool: `0x${string}`, enabled: boolean): Promise<`0x${string}`> {
+  return send(ctx, await ctx.walletClient.writeContract({ address: pool, abi: SPOT_POOL_ABI, functionName: "setManualVaultMode", args: [enabled], account: ctx.account, chain: ctx.walletClient.chain }));
+}
+
+/** Approve + deposit working capital into a pool's vault (the operator trades against this). */
+export async function depositVault(ctx: ChainContext, pool: `0x${string}`, token: `0x${string}`, amountRaw: bigint): Promise<`0x${string}`> {
+  const allowance = await ctx.publicClient.readContract({ address: token, abi: ERC20_ABI, functionName: "allowance", args: [ctx.account.address, pool] });
+  if (allowance < amountRaw) {
+    await send(ctx, await ctx.walletClient.writeContract({ address: token, abi: ERC20_ABI, functionName: "approve", args: [pool, amountRaw], account: ctx.account, chain: ctx.walletClient.chain }));
+  }
+  return send(ctx, await ctx.walletClient.writeContract({ address: pool, abi: SPOT_POOL_ABI, functionName: "deposit", args: [token, amountRaw], account: ctx.account, chain: ctx.walletClient.chain }));
 }
 
 /** Grant (or revoke) an operator for a single pool. Defaults to place + cancel. */
@@ -50,20 +90,20 @@ export async function grantOperator(
   ctx: ChainContext,
   pool: `0x${string}`,
   operator: `0x${string}`,
-  selectors: readonly Selector[] = [OPERATOR_SELECTOR.placeOrderFor, OPERATOR_SELECTOR.cancelOrderFor],
+  selectors: readonly `0x${string}`[] = [OPERATOR_SELECTOR.placeOrderFor, OPERATOR_SELECTOR.cancelOrderFor],
   approved = true,
 ): Promise<`0x${string}`> {
   return send(ctx, await ctx.walletClient.writeContract({
     address: ctx.net.operatorRegistry, abi: OPERATOR_REGISTRY_ABI, functionName: "setOperatorApprovalForPool",
-    args: [pool, operator, selectors as Selector[], approved], account: ctx.account, chain: ctx.walletClient.chain,
+    args: [pool, operator, selectors as `0x${string}`[], approved], account: ctx.account, chain: ctx.walletClient.chain,
   }));
 }
 
-export function revokeOperator(ctx: ChainContext, pool: `0x${string}`, operator: `0x${string}`, selectors?: readonly Selector[]): Promise<`0x${string}`> {
+export function revokeOperator(ctx: ChainContext, pool: `0x${string}`, operator: `0x${string}`, selectors?: readonly `0x${string}`[]): Promise<`0x${string}`> {
   return grantOperator(ctx, pool, operator, selectors, false);
 }
 
 /** The exact yes/no the pool enforces inside placeOrderFor / cancelOrderFor. */
-export async function isOperatorAuthorized(client: PublicClient, pool: `0x${string}`, owner: `0x${string}`, operator: `0x${string}`, selector: Selector): Promise<boolean> {
+export async function isOperatorAuthorized(client: PublicClient, pool: `0x${string}`, owner: `0x${string}`, operator: `0x${string}`, selector: `0x${string}`): Promise<boolean> {
   return client.readContract({ address: pool, abi: SPOT_POOL_ABI, functionName: "isOperatorAuthorized", args: [owner, operator, selector] });
 }

@@ -61,7 +61,8 @@ export class DreamDexRest {
     private readonly account: Account,
   ) {}
 
-  // ── Public market data ──────────────────────────────────────────────────
+  // ——— Public market data ————————————————————————————————————————————————
+
   async fetchMarkets(): Promise<MarketInfo[]> {
     const body = await this.request<{ markets: MarketInfo[] }>("GET", "/markets", { auth: false });
     return body.markets;
@@ -73,7 +74,8 @@ export class DreamDexRest {
     return this.request("GET", `/orderbooks?symbols=${q}&depth=${depth}`, { auth: false });
   }
 
-  // ── Authenticated: prepare unsigned txs ─────────────────────────────────
+  // ——— Authenticated: prepare unsigned txs ———————————————————————————————
+
   async prepareOrder(input: PrepareOrderInput): Promise<PreparedTx> {
     const { symbol, ...rest } = input;
     return this.request<PreparedTx>("POST", `/markets/${encodeURIComponent(symbol)}/orders`, {
@@ -95,14 +97,19 @@ export class DreamDexRest {
     return this.request("GET", `/markets/${encodeURIComponent(symbol)}/orders/${orderId}`);
   }
 
-  // ── SIWE auth ────────────────────────────────────────────────────────────
+  // ——— SIWE auth ————————————————————————————————————————————————
+
   async ensureAuth(): Promise<string> {
     if (this.token && Date.now() < this.tokenExpiry - REFRESH_MARGIN_MS) return this.token;
 
     const { nonce } = await this.request<{ nonce: string }>("GET", "/auth/nonce", { auth: false });
     const domain = new URL(this.net.restApi).host;
     const uri = new URL(this.net.restApi).origin;
-    const issuedAt = new Date().toISOString();
+    const now = new Date();
+    const issuedAt = now.toISOString();
+    // Expiry 5 minutes from now (RFC3339)
+    const expiresAt = new Date(now.getTime() + 5 * 60_000).toISOString();
+
     const message =
       `${domain} wants you to sign in with your Ethereum account:\n` +
       `${this.account.address}\n\n` +
@@ -111,7 +118,8 @@ export class DreamDexRest {
       `Version: 1\n` +
       `Chain ID: ${this.net.chainId}\n` +
       `Nonce: ${nonce}\n` +
-      `Issued At: ${issuedAt}`;
+      `Issued At: ${issuedAt}\n` +
+      `Expiration Time: ${expiresAt}`;
 
     if (!this.account.signMessage) throw new Error("Account cannot sign messages (need a local account).");
     const signature = await this.account.signMessage({ message });
@@ -125,7 +133,8 @@ export class DreamDexRest {
     return this.token;
   }
 
-  // ── Low-level request ────────────────────────────────────────────────────
+  // ——— Low-level request ——————————————————————————————————————————————
+
   private async request<T = unknown>(
     method: string,
     path: string,

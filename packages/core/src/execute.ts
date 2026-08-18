@@ -53,6 +53,8 @@ export interface PlaceOrderParams {
   orderType?: number; // defaults to IOC
   expireTimestampNs: bigint;
   userData?: bigint;
+  builder?: `0x${string}`;
+  builderFeeBpsTimes1k?: bigint;
 }
 
 export interface PlaceOrderResult {
@@ -67,8 +69,12 @@ export interface ExecCtx {
   account: Account;
 }
 
+const MAX_BUILDER_FEE_BPS_TIMES_1K = 100_000n; // 1% = 100 bps * 1000
+const MAX_APPROVAL_MULTIPLIER = 8n;
+const MAX_APPROVAL_CAP = 1_000_000n * 10n ** 18n; // $1M cap (adjust decimals as needed)
+
 export async function placeOrder(ctx: ExecCtx, p: PlaceOrderParams): Promise<PlaceOrderResult> {
-  const orderType = p.orderType ?? ORDER_TYPE.ImmediateOrCancel;
+  const orderType = p.orderType ?? 0; // IOC
 
   // 1. Guards.
   assertExpireNs(p.expireTimestampNs);
@@ -78,16 +84,22 @@ export async function placeOrder(ctx: ExecCtx, p: PlaceOrderParams): Promise<Pla
   assertQtyMultipleOfLot(p.quantityRaw, p.lotRaw);
   assertBuilderDisabled(zeroAddress, 0n);
 
+  // Validate builder fee against on-chain cap (1% = 100_000 bps*1000)
+  const builderFee = p.builderFeeBpsTimes1k ?? 0n;
+  if (builderFee > MAX_BUILDER_FEE_BPS_TIMES_1K) {
+    throw new GotchaError("BUILDER_FEE_EXCEEDS_CAP", `builderFeeBpsTimes1k ${builderFee} exceeds max ${MAX_BUILDER_FEE_BPS_TIMES_1K}`);
+  }
+
   const args = [
     p.isBid,
     p.userData ?? 0n,
     p.priceRaw,
     p.quantityRaw,
     p.expireTimestampNs,
-    orderType,
-    SELF_MATCH.CancelTaker,
-    zeroAddress,
-    0n,
+    0, // IOC
+    0, // selfMatch CancelTaker
+    p.builder ?? "0x0000000000000000000000000000000000000000",
+    builderFee,
   ] as const;
 
   // 2. Funding: ask the pool exactly what it will pull.
@@ -95,7 +107,7 @@ export async function placeOrder(ctx: ExecCtx, p: PlaceOrderParams): Promise<Pla
     address: p.pool,
     abi: SPOT_POOL_ABI,
     functionName: "getAutoPullRequirement",
-    args: [ctx.account.address, p.isBid, p.priceRaw, p.quantityRaw, 0n],
+    args: [ctx.account.address, p.isBid, p.priceRaw, p.quantityRaw, builderFee],
   });
 
   let value = 0n;
@@ -110,7 +122,17 @@ export async function placeOrder(ctx: ExecCtx, p: PlaceOrderParams): Promise<Pla
     address: p.pool,
     abi: SPOT_POOL_ABI,
     functionName: "placeOrder",
-    args,
+    args: [
+      p.isBid,
+      p.userData ?? 0n,
+      p.priceRaw,
+      p.quantityRaw,
+      p.expireTimestampNs,
+      0, // IOC
+      0, // selfMatch CancelTaker
+      p.builder ?? "0x0000000000000000000000000000000000000000",
+      builderFee,
+    ],
     account: ctx.account,
     value,
   });
@@ -126,7 +148,17 @@ export async function placeOrder(ctx: ExecCtx, p: PlaceOrderParams): Promise<Pla
   let estimate: bigint | undefined;
   try {
     estimate = await ctx.publicClient.estimateContractGas({
-      address: p.pool, abi: SPOT_POOL_ABI, functionName: "placeOrder", args, account: ctx.account, value,
+      address: p.pool, abi: SPOT_POOL_ABI, functionName: "placeOrder", args: [
+        p.isBid,
+        p.userData ?? 0n,
+        p.priceRaw,
+        p.quantityRaw,
+        p.expireTimestampNs,
+        0, // IOC
+        0, // selfMatch CancelTaker
+        p.builder ?? "0x0000000000000000000000000000000000000000",
+        builderFee,
+      ], account: ctx.account, value,
     });
   } catch {
     estimate = undefined;
@@ -150,15 +182,13 @@ export async function placeOrder(ctx: ExecCtx, p: PlaceOrderParams): Promise<Pla
   return { txHash, orderId, gasUsed: receipt.gasUsed };
 }
 
-/**
- * Place an order ON BEHALF OF `owner` from an approved operator key (split-key /
+/** Place an order ON BEHALF OF `owner` from an approved operator key (split-key /
  * session-key trading). Funds come from the owner's vault (owner must be in
  * manual vault mode and have deposited + granted the operator the placeOrderFor
  * selector — see operator.ts / docs/session-keys.md). No allowance or msg.value:
- * the operator never holds funds.
- */
+ * the operator never holds funds. */
 export async function placeOrderFor(ctx: ExecCtx, p: PlaceOrderParams, owner: `0x${string}`): Promise<PlaceOrderResult> {
-  const orderType = p.orderType ?? ORDER_TYPE.ImmediateOrCancel;
+  const orderType = p.orderType ?? 0; // IOC
   assertExpireNs(p.expireTimestampNs);
   assertPriceRawNonZero(p.priceRaw);
   assertPriceMultipleOfTick(p.priceRaw, p.tickRaw);
@@ -166,18 +196,38 @@ export async function placeOrderFor(ctx: ExecCtx, p: PlaceOrderParams, owner: `0
   assertQtyMultipleOfLot(p.quantityRaw, p.lotRaw);
   assertBuilderDisabled(zeroAddress, 0n);
 
+  const builderFee = p.builderFeeBpsTimes1k ?? 0n;
+  if (builderFee > MAX_BUILDER_FEE_BPS_TIMES_1K) {
+    throw new GotchaError("BUILDER_FEE_EXCEEDS_CAP", `builderFeeBpsTimes1k ${builderFee} exceeds max ${MAX_BUILDER_FEE_BPS_TIMES_1K}`);
+  }
+
   const args = [
     owner, p.isBid, p.userData ?? 0n, p.priceRaw, p.quantityRaw, p.expireTimestampNs,
-    orderType, SELF_MATCH.CancelTaker, zeroAddress, 0n,
+    0, // IOC
+    0, // selfMatch CancelTaker
+    p.builder ?? "0x0000000000000000000000000000000000000000",
+    builderFee,
   ] as const;
 
-  const sim = await ctx.publicClient.simulateContract({ address: p.pool, abi: SPOT_POOL_ABI, functionName: "placeOrderFor", args, account: ctx.account, value: 0n });
+  const sim = await ctx.publicClient.simulateContract({ address: p.pool, abi: SPOT_POOL_ABI, functionName: "placeOrderFor", args: [
+    owner, p.isBid, p.userData ?? 0n, p.priceRaw, p.quantityRaw, p.expireTimestampNs,
+    0, // IOC
+    0, // selfMatch CancelTaker
+    p.builder ?? "0x0000000000000000000000000000000000000000",
+    builderFee,
+  ], account: ctx.account, value: 0n });
   const [ok] = sim.result;
   if (!ok) throw new GotchaError("SIM_FALSE", "placeOrderFor simulation returned success=false (owner in manual vault mode + deposited + operator approved?).");
 
   let estimate: bigint | undefined;
   try {
-    estimate = await ctx.publicClient.estimateContractGas({ address: p.pool, abi: SPOT_POOL_ABI, functionName: "placeOrderFor", args, account: ctx.account, value: 0n });
+    estimate = await ctx.publicClient.estimateContractGas({ address: p.pool, abi: SPOT_POOL_ABI, functionName: "placeOrderFor", args: [
+      owner, p.isBid, p.userData ?? 0n, p.priceRaw, p.quantityRaw, p.expireTimestampNs,
+      0, // IOC
+      0, // selfMatch CancelTaker
+      p.builder ?? "0x0000000000000000000000000000000000000000",
+      builderFee,
+    ], account: ctx.account, value: 0n });
   } catch {
     estimate = undefined;
   }
@@ -212,7 +262,8 @@ export async function cancelOrder(ctx: ExecCtx, pool: `0x${string}`, orderId: bi
   return hash;
 }
 
-/** Approve `spender` to pull at least `amount` of `token`, if the current allowance is short. */
+/** Approve `spender` to pull at least `amount` of `token`, if the current allowance is short.
+ *  Applies a safety cap (8x multiplier capped at MAX_APPROVAL_CAP) to prevent unbounded approvals. */
 export async function ensureAllowance(
   ctx: ExecCtx,
   token: `0x${string}`,
@@ -226,22 +277,30 @@ export async function ensureAllowance(
     args: [ctx.account.address, spender],
   });
   if (current >= amount) return;
+
+  // Cap the approval at 8x the required amount, with a hard safety ceiling.
+  const MAX_APPROVAL_CAP = 1_000_000n * 10n ** 18n; // $1M cap (adjust decimals per token)
+  const desired = amount * 8n;
+  const capped = desired > 1_000_000n * 10n ** 18n ? 1_000_000n * 10n ** 18n : desired;
+
   const hash = await ctx.walletClient.writeContract({
     address: token,
     abi: ERC20_ABI,
     functionName: "approve",
-    // Approve a generous multiple so we don't approve on every order.
-    args: [spender, amount * 8n],
+    // Approve a generous multiple so we don't approve on every order, but cap at safety ceiling.
+    args: [spender, capped],
     chain: ctx.walletClient.chain,
     account: ctx.account,
   });
   await ctx.publicClient.waitForTransactionReceipt({ hash });
 }
 
+const MAX_BUILDER_FEE_BPS_TIMES_1K = 100_000n; // 1% = 100 bps * 1000
+
 function pickGas(estimate: bigint | undefined, baseIsNative: boolean, isBid: boolean): bigint {
   // Floors: native BUY needs the 5M payout headroom; native SELL is still
   // gas-heavy (native-value handling) so give it room; ERC-20 ops are light.
-  const floor = baseIsNative ? (isBid ? NATIVE_BASE_BUY_GAS : 2_000_000n) : DEFAULT_GAS_FLOOR;
-  const withHeadroom = estimate ? (estimate * 13n) / 10n : floor;
+  const floor = baseIsNative ? (isBid ? 5_000_000n : 2_000_000n) : 700_000n;
+  const withHeadroom = estimate ? (estimate * 13n) / 10n : (baseIsNative ? (isBid ? 5_000_000n : 2_000_000n) : 700_000n);
   return withHeadroom > floor ? withHeadroom : floor;
 }

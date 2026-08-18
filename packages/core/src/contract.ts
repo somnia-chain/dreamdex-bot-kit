@@ -8,14 +8,13 @@
 
 // SpotPool contract surface (the modern, post-June-2026-upgrade ABI) plus typed read
 // helpers and the event topic0 hashes you need for reading fills off-chain.
-//
-// Only the functions a bot actually uses are included. Admin entrypoints are
-// omitted. Full reference: https://docs.dreamdex.io (Developers → Contracts).
+// Only the functions a bot actually uses are included. Admin entrypoints are omitted.
+// Full reference: https://docs.dreamdex.io (Developers + Contracts).
 
 import type { PublicClient } from "viem";
 
 export const SPOT_POOL_ABI = [
-  // ── Orders ────────────────────────────────────────────────────────────────
+  // ——— Orders ————————————————————————————————————————————————
   // NOTE: `placeOrder` is the single, payable entry point. The old
   // `placeTakerOrderWithoutVault` was REMOVED in the June 2026 upgrade — do not use it.
   {
@@ -49,11 +48,11 @@ export const SPOT_POOL_ABI = [
     ],
     outputs: [],
   },
-  // ── Vault (manual mode / native) ──────────────────────────────────────────
+  // ——— Vault (manual mode / native) ——————————————————————————————
   { type: "function", name: "deposit", stateMutability: "nonpayable", inputs: [{ name: "token", type: "address" }, { name: "amount", type: "uint256" }], outputs: [] },
   { type: "function", name: "depositNative", stateMutability: "payable", inputs: [], outputs: [] },
   { type: "function", name: "withdraw", stateMutability: "nonpayable", inputs: [{ name: "token", type: "address" }, { name: "amount", type: "uint256" }], outputs: [] },
-  // ── Reads ─────────────────────────────────────────────────────────────────
+  // ——— Reads —————————————————————————————————————————————————————
   {
     type: "function",
     name: "getPoolParams",
@@ -96,7 +95,7 @@ export const SPOT_POOL_ABI = [
       { name: "delta", type: "uint256" },
     ],
   },
-  // ── Operator / split-key surface ───────────────────────────────────────────
+  // ——— Operator / split-key surface ———————————————————————————————
   // Place / cancel an order on behalf of `owner`, from an approved operator key.
   {
     type: "function",
@@ -175,7 +174,7 @@ export interface PoolParams {
 
 export async function readPoolParams(client: PublicClient, pool: `0x${string}`): Promise<PoolParams> {
   const r = await client.readContract({ address: pool, abi: SPOT_POOL_ABI, functionName: "getPoolParams" });
-  return {
+  const params = {
     baseToken: r[0],
     quoteToken: r[1],
     makerFeeBpsTimes1k: r[2],
@@ -184,6 +183,19 @@ export async function readPoolParams(client: PublicClient, pool: `0x${string}`):
     minQuantity: r[5],
     lotSize: r[6],
   };
+
+  // Validate critical parameters to prevent bot crashes and silent failures.
+  if (params.tickSize === 0n) {
+    throw new Error(`readPoolParams: invalid tickSize=0 for pool ${pool} — would cause division by zero in quant.ts`);
+  }
+  if (params.lotSize === 0n) {
+    throw new Error(`readPoolParams: invalid lotSize=0 for pool ${pool} — would cause division by zero in quant.ts`);
+  }
+  if (params.minQuantity === 0n) {
+    throw new Error(`readPoolParams: invalid minQuantity=0 for pool ${pool} — invalid pool configuration`);
+  }
+
+  return params;
 }
 
 export interface BookLevel {
