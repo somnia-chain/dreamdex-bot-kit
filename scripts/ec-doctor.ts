@@ -54,7 +54,7 @@ async function printWallet(
   }
   const normalized = pk.startsWith("0x") ? pk : `0x${pk}`;
   const addr = privateKeyToAccount(normalized as `0x${string}`).address;
-  const pc = ctx.exchange.client.publicClient;
+  const pc = ctx.exchange.client.getViemClient();
   const native = await pc.getBalance({ address: addr });
   const { config } = ctx;
   const collateral = config.addresses.collateral ?? config.addresses.testUsdc;
