@@ -136,3 +136,80 @@ market table has the correct per-token decimals.
 **Symptom:** you quote/cross against a price that's already gone.
 **Fix:** treat REST snapshots as approximate; for anything price-sensitive, read `getBookLevels`
 on-chain (the strategies do), and periodically reconcile your WS view against it.
+
+---
+
+## Event Contracts (binary markets)
+
+The ones above are the spot and perp surface. Binary pools are a different contract with its own
+set, and every one of these was hit by a real vault quoting Event Contracts on Shannon. Detail
+and reproduction for each is in the linked issue.
+
+### 17. Binary order prices are scaled to the collateral's decimals
+
+**Symptom:** every order reverts, with `PostOnlyWouldCross()` on `BUY_YES` / `SELL_NO` and
+`PriceOutOfBounds()` on `SELL_YES` / `BUY_NO`. Neither error mentions price.
+**Cause:** a probability of 0.727 goes on the wire as `727000` on 6-decimal tUSDC and `727e15`
+on 18-decimal USDso. Both reverts are truthful — a price of 727 billion *would* cross the whole
+book on the bid side and *is* out of bounds on the ask side — which is why they send you looking
+at spreads and post-only semantics instead of at the scale.
+**Fix:** derive `priceOne` from the collateral's `decimals()`, never from a literal. The tick
+grid is `precision.price = 3` on the market row.
+([#26](https://github.com/somnia-chain/dreamdex-bot-kit/issues/26))
+
+### 18. `placeOrder` exists on a binary pool and can never succeed
+
+**Symptom:** a compiling, type-checking call reverts `UseBinaryPlacement`.
+**Cause:** `binaryPoolWriteAbi` exports the spot `placeOrder(bool isBid, ...)` alongside
+`placeBinaryOrder(uint8 kind, ...)`. Autocomplete finds the familiar one first.
+**Fix:** `placeBinaryOrder` only. Same for `getAutoPullRequirement` and `somiPaymentPerOrder`,
+which are in the binary ABI surface and revert on a binary pool.
+([#27](https://github.com/somnia-chain/dreamdex-bot-kit/issues/27))
+
+### 19. Redemption pulls through the **module**, not the pool
+
+**Symptom:** everything works until settlement, then `redeem` and `mergeCompleteSet` revert
+`InsufficientPermission()` (`0xdeda9030`) — with no argument saying which spender is missing.
+**Cause:** buying outcome tokens pulls nothing (two crossing buys mint a fresh pair), so no
+ERC-6909 grant is needed until the one call that turns tokens back into money. The puller then
+is the markets module, not the pool the orders went to.
+**Fix:** `outcomeToken.setOperator(binaryMarketsModule, true)` at construction, not at
+settlement. By the time it reverts the window has resolved and left the live market list.
+([#32](https://github.com/somnia-chain/dreamdex-bot-kit/issues/32))
+
+### 20. `cancelOrder` reverts on a leg that already filled
+
+**Symptom:** cancelling both legs of a two-sided quote reverts `IncorrectSender` (`0xf5e39c1f`)
+and takes the whole cleanup down with it.
+**Cause:** a filled id is no longer a live order the caller owns.
+**Fix:** `try/catch` per leg. Note what this means: batch cleanup fails on exactly the shape
+that needs cleaning — one side filled, the other resting against a market that walked away.
+([#33](https://github.com/somnia-chain/dreamdex-bot-kit/issues/33))
+
+### 21. A pool freezes its whole book from expiry until the market is terminal
+
+**Symptom:** every cancel path — `cancelOrder`, `cancelOrders`, `cancelExpiredOrders`,
+`sweepExpiredAtLevel` — reverts `0x8afbce93`, which decodes to nothing in any public database
+or in `contractErrorsAbi`. Escrow on an expired window is stuck.
+**Cause:** the book is closed for the settlement window. Measured on a fork against a live 24h
+window (`settlementWindow` 300): cancel is fine at expiry−5, reverts at +1 and +295, and works
+again at +315 — the instant `voidExpired()` becomes callable.
+**Fix:** do not expect to cancel between expiry and terminal. If the oracle never answers,
+`BinaryMarket.voidExpired()` opens at `expiry + settlementWindow` and is permissionless; it is
+on the **market**, not among the module's keeper entries where you would look for it.
+([#40](https://github.com/somnia-chain/dreamdex-bot-kit/issues/40),
+[#39](https://github.com/somnia-chain/dreamdex-bot-kit/issues/39))
+
+### 22. BinaryPools are beacon proxies, and `binaryPoolImpl` is not the code that runs
+
+**Symptom:** you read the pool implementation's source to explain a revert and it does not
+explain it. An `implementation()` staticcall appears in the internal trace of every pool call
+and looks like an access gate.
+**Cause:** a pool address holds 291 bytes of beacon proxy. It staticcalls
+`implementation()` (`0x5c60da1b`) on beacon `0x85c01b5e…` and delegatecalls the result. The
+`SOMNIA_TESTNET_ADDRESSES.binaryPoolImpl` constant (37,936 bytes) is not what the beacon
+currently resolves to (40,566 bytes), and `contractErrorsAbi` is generated from a commit that
+predates it — a second reason a live revert can decode to nothing.
+**Fix:** resolve `implementation()` off the beacon before you read any source, and do not pin
+behaviour to a pool address. The code behind a live position can change with no address change.
+([#41](https://github.com/somnia-chain/dreamdex-bot-kit/issues/41))
