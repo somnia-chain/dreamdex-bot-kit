@@ -28,6 +28,10 @@ const ALLOWED = new Set([
   "ec-laddering-bot",
   "ec-oracle-follow",
   "ec-settlement",
+  "perp-starter",
+  "perp-maker",
+  "perp-funding",
+  "perp-guard",
 ]);
 
 function normalizePrivateKey(raw) {

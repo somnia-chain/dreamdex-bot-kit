@@ -19,7 +19,7 @@
     "backtest": "tsx scripts/backtest.ts",
     "build": "npm run build -w @dreamdex-bot-kit/core && npm run build -w @dreamdex-bot-kit/backtest",
     "typecheck": "npm run build && npm run typecheck --workspaces --if-present",
-    "test": "npm run test -w @dreamdex-bot-kit/backtest && npm run test -w @dreamdex-bot-kit/ec-core",
+    "test": "npm run test -w @dreamdex-bot-kit/backtest && npm run test -w @dreamdex-bot-kit/ec-core && npm run test -w @dreamdex-bot-kit/perp-core",
     "ec:doctor": "npx tsx scripts/ec-doctor.ts",
     "ec:test": "node scripts/ec-test/run-gate.mjs",
     "ec:test:report": "node scripts/ec-test/report.mjs",
