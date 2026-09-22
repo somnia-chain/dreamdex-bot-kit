@@ -149,6 +149,15 @@ export async function placePerp(args: PlaceArgs): Promise<PlaceResult> {
       console.log(`${what}: nothing crossed, the book moved. Not sent again this cycle.`);
       return { sent: true, filled: 0n, noFill: true };
     }
+    // A POST_ONLY that would take reverts `PostOnlyWouldCross` rather than
+    // resting: the touch moved between the read and the send. That is an
+    // ordinary outcome of quoting a live book, not a fault. Rethrowing it here
+    // is what lets a maker exit with the OTHER leg still resting, so it is
+    // caught and reported as a skipped quote instead.
+    if (message.includes("PostOnlyWouldCross")) {
+      console.log(`${what}: would cross the touch as a maker, skipped rather than paying the spread. Re-quotes next cycle.`);
+      return { sent: false, filled: 0n, noFill: true };
+    }
     throw err;
   }
   assertTxOk(res as { hash?: string; receipt?: { status?: string } }, what);

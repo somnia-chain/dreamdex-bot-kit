@@ -128,32 +128,42 @@ async function main(): Promise<void> {
     const wanted = sizeForNotional(NOTIONAL, fresh.info, mark);
     const next: Quote = { atMark: mark };
 
-    for (const [side, price] of [["long", bidPx] as const, ["short", askPx] as const]) {
-      // Do not add to a side that is already at the cap. The other side stays
-      // quoted, which is how the position comes back rather than getting stuck.
-      const wouldExceed = side === "long" ? inventory >= MAX_POSITION : inventory <= -MAX_POSITION;
-      if (wouldExceed) {
-        console.log(`${side} side held back: inventory ${inventory.toFixed(2)} USDso is at the cap`);
-        continue;
+    // If one leg throws after the other is already resting, pull the placed leg
+    // before the error propagates: a bot that exits here would otherwise leave a
+    // one-sided quote trading on the book with nobody watching it.
+    try {
+      for (const [side, price] of [["long", bidPx] as const, ["short", askPx] as const]) {
+        // Do not add to a side that is already at the cap. The other side stays
+        // quoted, which is how the position comes back rather than getting stuck.
+        const wouldExceed = side === "long" ? inventory >= MAX_POSITION : inventory <= -MAX_POSITION;
+        if (wouldExceed) {
+          console.log(`${side} side held back: inventory ${inventory.toFixed(2)} USDso is at the cap`);
+          continue;
+        }
+        const sized = me
+          ? await sizeOrder(ctx.exchange, { market: fresh, account: me, side, price, wanted })
+          : { ok: true as const, quantity: wanted };
+        if (!sized.ok) {
+          console.log(`${side} side skipped: ${sized.reason}`);
+          continue;
+        }
+        const placed = await placePerp({
+          ctx,
+          market: fresh,
+          side,
+          price,
+          quantity: sized.quantity,
+          orderType: ORDER_TYPE.POST_ONLY,
+          label: "quote",
+        });
+        if (side === "long") next.bid = placed.orderId;
+        else next.ask = placed.orderId;
       }
-      const sized = me
-        ? await sizeOrder(ctx.exchange, { market: fresh, account: me, side, price, wanted })
-        : { ok: true as const, quantity: wanted };
-      if (!sized.ok) {
-        console.log(`${side} side skipped: ${sized.reason}`);
-        continue;
+    } catch (err) {
+      for (const id of [next.bid, next.ask]) {
+        if (id !== undefined) await cancelQuietly(ctx, market, id);
       }
-      const placed = await placePerp({
-        ctx,
-        market: fresh,
-        side,
-        price,
-        quantity: sized.quantity,
-        orderType: ORDER_TYPE.POST_ONLY,
-        label: "quote",
-      });
-      if (side === "long") next.bid = placed.orderId;
-      else next.ask = placed.orderId;
+      throw err;
     }
 
     resting = next;
