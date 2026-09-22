@@ -210,7 +210,15 @@ export async function closePosition(
     account,
   });
   if (!preview.priceable) {
-    console.log("close skipped: market is un-priceable");
+    // The preview needs a mark; a reducing ORDER does not. The venue keeps the
+    // exit open during an oracle outage precisely so a position can be closed,
+    // but this path cannot size the close without the preview, so it stops
+    // here rather than guessing a quantity. Closing through an outage needs the
+    // position's own size instead, which is a separate change.
+    console.log(
+      "close skipped: the market is un-priceable, so the close preview has no size to act on. " +
+        "Reducing orders are still accepted by the venue; close manually if this persists.",
+    );
     return { sent: false, filled: 0n };
   }
   const whole = preview.closedQuantity;

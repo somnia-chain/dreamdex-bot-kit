@@ -80,14 +80,18 @@ function asPerp(market: UnifiedMarket): PerpMarket {
  * reads as an empty exchange. `active` is derived from the pool's own gates, so
  * an inactive market is one the venue has stopped, not one the indexer missed.
  */
-export async function perpMarkets(exchange: SomniaMarkets, reload = false): Promise<PerpMarket[]> {
+export async function perpMarkets(
+  exchange: SomniaMarkets,
+  reload = false,
+  opts: { includeHalted?: boolean } = {},
+): Promise<PerpMarket[]> {
   // `loadMarkets()` serves a cached registry. A polling loop that omits the
   // reload flag reads the mark, the funding rate and the open interest it saw
   // at startup, forever, which looks like a frozen market rather than a stale
   // cache.
   const markets = await exchange.loadMarkets(reload);
   return Object.values(markets)
-    .filter((m) => m.type === "swap" && m.active)
+    .filter((m) => m.type === "swap" && (opts.includeHalted || m.active))
     .map(asPerp);
 }
 
@@ -101,13 +105,13 @@ export async function perpMarkets(exchange: SomniaMarkets, reload = false): Prom
 export async function requireMarket(
   exchange: SomniaMarkets,
   symbol: string,
-  opts: { reload?: boolean } = {},
+  opts: { reload?: boolean; includeHalted?: boolean } = {},
 ): Promise<PerpMarket> {
   const wanted = baseOf(symbol);
   if (!wanted) {
     throw new Error("PERP_SYMBOL is empty. Set it to a market such as BTC-PERP.");
   }
-  const all = await perpMarkets(exchange, opts.reload ?? false);
+  const all = await perpMarkets(exchange, opts.reload ?? false, { includeHalted: opts.includeHalted });
   const hit = all.find((m) => baseOf(m.symbol) === wanted);
   if (hit) return hit;
   const names = all.map((m) => m.display).join(", ");

@@ -54,9 +54,11 @@ export function createExchange(opts: { withSigner?: boolean } = {}): PerpContext
 /**
  * Throw if a write's receipt says the transaction REVERTED.
  *
- * The SDK signs with fixed fees and skips simulation, and the write helpers
- * resolve with `{ hash, receipt }` WITHOUT checking `receipt.status`, so a
- * reverted order "succeeds" silently unless you check.
+ * A backstop, not the primary signal. Measured on the perp order path, the SDK
+ * REJECTS on a revert with the named error (`PostOnlyWouldCross`,
+ * `ImmediateOrCancelNoFill` and the rest), so a caller that only catches will
+ * already have seen it. This stays for the writes that resolve with a receipt
+ * instead, and costs nothing on the paths that throw.
  */
 export function assertTxOk(res: { hash?: string; receipt?: { status?: string } }, label = "transaction"): void {
   if (res?.receipt?.status === "reverted") {

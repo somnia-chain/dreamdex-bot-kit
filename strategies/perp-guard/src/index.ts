@@ -59,13 +59,22 @@ const POLL_MS = envNum("PERP_GUARD_POLL_MS", 30_000);
  * which is the shape that matters here: margin is cross, so a position in one
  * market can be liquidated to cover another, and watching one market in
  * isolation misses that entirely.
+ *
+ * Halted markets are kept deliberately. The live-market filter drops a market
+ * the venue has stopped, which is exactly when a guard is worth having: a
+ * position on it still carries margin, and reducing orders are still accepted
+ * while a market is un-priceable. Filtering on `active` here would blind the
+ * guard at the only moment it matters, so the watch list is built from what the
+ * ACCOUNT holds rather than from what the venue is currently quoting.
  */
 async function watchList(ctx: ReturnType<typeof createExchange>, account?: `0x${string}`): Promise<PerpMarket[]> {
-  if (ctx.config.symbol) return [await requireMarket(ctx.exchange, ctx.config.symbol)];
+  if (ctx.config.symbol) {
+    return [await requireMarket(ctx.exchange, ctx.config.symbol, { includeHalted: true })];
+  }
   if (!account) return perpMarkets(ctx.exchange);
   const positions = await ctx.exchange.fetchPositions();
   const held = new Set(positions.map((p) => p.symbol));
-  const all = await perpMarkets(ctx.exchange);
+  const all = await perpMarkets(ctx.exchange, false, { includeHalted: true });
   return all.filter((m) => held.has(m.symbol));
 }
 

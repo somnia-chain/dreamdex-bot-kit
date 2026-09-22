@@ -83,6 +83,8 @@ async function main(): Promise<void> {
   }
 
   console.log(`\nmarkets  : ${markets.length} live\n`);
+  // Funding reads identically on most markets because the rate sits pinned at
+  // the positive interest floor; a market that has moved off it stands out.
   for (const m of markets) {
     try {
       const live = await liveMark(ctx.exchange, m);
@@ -95,7 +97,11 @@ async function main(): Promise<void> {
       console.log(
         `${m.display.padEnd(10)} mark=${markStr} · funding ${(funding.apr * 100).toFixed(3)}% (pays ${funding.paidSide}s) · ` +
           `book[bid=${bid?.toFixed(1) ?? "—"} ask=${ask?.toFixed(1) ?? "—"}] · ` +
-          `tick=${m.info.tickSize} lot=${m.info.lotSize} minQty=${m.info.minQuantity} IM=${m.info.initialMarginBps}bps` +
+          // Raw units here are unreadable on a 24-decimal market, and reading
+          // them wrong is the mistake this script exists to prevent: prices are
+          // always 18dp, sizes use the market's own baseDecimals.
+          `tick=${formatUnits(BigInt(m.info.tickSize), 18)} lot=${formatUnits(BigInt(m.info.lotSize), m.info.baseDecimals)} ` +
+          `minQty=${formatUnits(BigInt(m.info.minQuantity), m.info.baseDecimals)} IM=${m.info.initialMarginBps}bps` +
           (stops ? ` · ${stops} stop(s) armed` : ""),
       );
     } catch (err) {
