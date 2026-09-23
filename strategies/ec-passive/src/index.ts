@@ -48,6 +48,7 @@ import {
   assertProbability,
   placeLimit,
   cancelTracked,
+  tryCancel,
   type EcContext,
   type UnifiedMarket,
   type MarketOnchain,
@@ -167,8 +168,9 @@ async function main() {
       if (shares >= MAX_POSITION) {
         // Done for this window: pull any remaining bid and hold what filled.
         for (const o of open) {
-          if (!ctx.config.dryRun) await ctx.exchange.cancelOrder(o.id, symbol);
-          log(`canceled resting bid ${o.id} @ ${o.price}`);
+          if (ctx.config.dryRun || (await tryCancel(ctx, o.id, symbol)) === "cancelled") {
+            log(`canceled resting bid ${o.id} @ ${o.price}`);
+          }
         }
         if (!holding) {
           holding = true;
@@ -204,8 +206,9 @@ async function main() {
       const resting = open.find((o) => o.side === "buy" && o.price !== undefined && Math.abs(o.price - px) < 1e-9);
       for (const o of open) {
         if (o === resting) continue;
-        if (!ctx.config.dryRun) await ctx.exchange.cancelOrder(o.id, symbol);
-        log(`canceled stray order ${o.id} @ ${o.price}`);
+        if (ctx.config.dryRun || (await tryCancel(ctx, o.id, symbol)) === "cancelled") {
+          log(`canceled stray order ${o.id} @ ${o.price}`);
+        }
       }
       if (!resting) {
         if (ctx.config.dryRun) {
@@ -243,9 +246,10 @@ async function main() {
       // invisible to the sweep below and would be left resting.
       const { cancelled } = await cancelTracked(ctx);
       const open = await ctx.exchange.fetchOpenOrders(workingSymbol);
-      for (const o of open) await ctx.exchange.cancelOrder(o.id, workingSymbol);
+      let swept = 0;
+      for (const o of open) if ((await tryCancel(ctx, o.id, workingSymbol)) === "cancelled") swept++;
       const { shares, avg } = await filledPosition(ctx, workingSymbol);
-      log(`stopped: canceled ${cancelled} tracked + ${open.length} swept; holding ${shares.toFixed(2)} shares @ avg ${avg.toFixed(3)}`);
+      log(`stopped: canceled ${cancelled} tracked + ${swept} swept; holding ${shares.toFixed(2)} shares @ avg ${avg.toFixed(3)}`);
     } catch (e) {
       log(`shutdown cancel failed: ${(e as Error).message}`);
     }

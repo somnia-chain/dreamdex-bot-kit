@@ -19,7 +19,7 @@ import {
   placeLimit,
   cancelTracked,
   cancelVenueOrders,
-  untrackOrder,
+  tryCancel,
   headroomSec,
   type Outcome,
   createExchange,
@@ -98,11 +98,9 @@ async function readBalances(ctx: EcContext, onchain: MarketOnchain): Promise<Bal
 async function cancelOpenOn(ctx: EcContext, symbol: string): Promise<number> {
   if (ctx.config.dryRun) return 0;
   const open = await ctx.exchange.fetchOpenOrders(symbol);
-  for (const o of open) {
-    await ctx.exchange.cancelOrder(o.id, symbol);
-    untrackOrder(o.id); // pulled here, so drop it from the shutdown list
-  }
-  return open.length;
+  let canceled = 0;
+  for (const o of open) if ((await tryCancel(ctx, o.id, symbol)) === "cancelled") canceled++;
+  return canceled;
 }
 
 /** One live market with the most time left (for grid or flatten). */
