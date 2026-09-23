@@ -16,7 +16,7 @@
   "dependencies": {
     "@somnia-chain/markets-sdk": "^0.30.0",
     "dotenv": "^16.4.5",
-    "viem": "^2.21.0"
+    "viem": "^2.56.3"
   },
   "devDependencies": {
     "@types/node": "^22.0.0",
