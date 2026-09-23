@@ -161,15 +161,18 @@ grid rather than assuming it. `getBinaryBookParams(pool)` returns `tickSize`, `l
 `ERC20InsufficientAllowance` on a buy, `InsufficientPermission` on a sell.
 ([#26](https://github.com/somnia-chain/dreamdex-bot-kit/issues/26))
 
-### 18. `placeOrder` is exported on a binary pool and can never succeed
+### 18. The spot `placeOrder` exists on a binary pool and can never succeed
 
-**Symptom:** a compiling, type-checking call reverts with no reason data at all. Same for
-`getAutoPullRequirement` and `somiPaymentPerOrder`. An empty revert is indistinguishable from
-calling a function that does not exist, so there is nothing to decode and nothing to search for.
-**Cause:** `binaryPoolWriteAbi` exports the spot `placeOrder(bool isBid, ...)` next to
-`placeBinaryOrder(uint8 kind, ...)`, and autocomplete finds the familiar one first.
+**Symptom:** the spot `placeOrder(bool isBid, ...)` sent to a binary pool reverts
+`UseBinaryPlacement()` (`0x341c6622`). `getAutoPullRequirement` and `somiPaymentPerOrder` revert
+with no data at all.
+**Cause:** a binary pool keeps the order book's spot entry point and disables it. The two views
+are not in the binary implementation, so those calls hit a selector that does not exist, which is
+why there is nothing to decode. `binaryPoolWriteAbi` carries only the binary entries; the spot
+signature comes from `spotPoolWriteAbi` or `perpPoolWriteAbi`.
 **Fix:** `placeBinaryOrder` only, with `kind` 0 `BUY_YES`, 1 `SELL_YES`, 2 `BUY_NO`, 3 `SELL_NO`,
-and the price always quoted on the YES side.
+and the price always quoted on the YES side. There is no binary counterpart of
+`getAutoPullRequirement`, so size a buy against your balance yourself.
 ([#27](https://github.com/somnia-chain/dreamdex-bot-kit/issues/27))
 
 ### 19. Redemption pulls through the module, not the pool
@@ -188,27 +191,35 @@ settlement. By the time it reverts the window has resolved and left the live mar
 
 ### 20. `cancelOrder` reverts on a leg that already filled
 
-**Symptom:** cancelling both legs of a two-sided quote reverts `IncorrectSender()` (`0xf5e39c1f`)
-and takes the whole cleanup down with it.
-**Cause:** a filled id is no longer a live order the caller owns, and any id the caller does not
-own gives the same error.
-**Fix:** `try`/`catch` per leg. Note what this means: batch cleanup fails on exactly the shape
-that needs cleaning, one side filled and the other resting against a market that walked away.
+**Symptom:** cancelling both legs of a two-sided quote reverts on the filled leg and takes the
+whole cleanup down with it. The error depends on what now holds that order's slot:
+`IncorrectSender(address sender, address expected)` (`0xf5e39c1f`) with `expected` = `0x0` when
+the slot is empty or another trader's address when their newer order reuses it, and
+`IncorrectOrder()` (`0x8080c2ed`) when your own newer order does.
+**Cause:** a filled id no longer names a live order you own, and its slot can already hold a
+newer order.
+**Fix:** use the pool's batch `cancelOrders(uint128[])`: it returns a `bool[]`, `false` for an id
+that is gone, and still cancels the live ones. Or isolate each single cancel, as the kit's
+`tryCancel` does: `IncorrectSender` and `IncorrectOrder` mean the order is already gone, while any
+other failure, such as `CloseNotCaptured()` (#21) or `InsufficientGasForPayout` (#23), means it is
+still resting.
 ([#33](https://github.com/somnia-chain/dreamdex-bot-kit/issues/33))
 
-### 21. A pool freezes its whole book from expiry until the market is terminal
+### 21. Closing orders are locked from expiry until the close is captured
 
-**Symptom:** every cancel path (`cancelOrder`, `cancelOrders`, `cancelExpiredOrders`,
-`sweepExpiredAtLevel`) reverts `0x8afbce93`, `CloseNotCaptured()`, and escrow on an expired
-window is stuck. The selector decodes only against a current `contractErrorsAbi`; older SDK pins
-do not carry it, which is why the revert can look like nothing at all.
-**Cause:** the book is closed for the settlement window, which is when the close price is
-captured.
-**Fix:** do not expect to cancel between expiry and terminal. If the oracle never answers,
-`BinaryMarket.voidExpired()` opens at `expiry + settlementWindow` and is permissionless; called
-earlier it reverts `SettlementWindowOpen()`. It sits on the **market**, not among the module's
-keeper entries where you would look for it. `settlementWindow()` reads `300` on live markets
-today, so read it rather than assuming.
+**Symptom:** after expiry, `cancelOrder`, `cancelOrders`, `cancelExpiredOrders` and
+`sweepExpiredAtLevel` revert `CloseNotCaptured()` (`0x8afbce93`) on a closing order, one whose
+expiry equals the market's. One closing id reverts a whole batch; orders that expired earlier
+still sweep. The selector decodes from markets-sdk 0.29.0 on; older pins carry no entry for it,
+which is why the revert can look like nothing at all.
+**Cause:** the pool freezes the closing book so no one can edit it after trading ends. The lock
+lifts once the closing price is captured or the market is resolved or voided.
+**Fix:** `captureClose(0)` is permissionless from expiry (before it, `CaptureTooEarly()`); once it
+has run, cancels work again. On a normal resolution the lock lasts a few seconds. If the oracle
+never answers, `BinaryMarket.voidExpired()` opens at `expiry + settlementWindow` and is
+permissionless; called earlier it reverts `SettlementWindowOpen()`. It sits on the **market**,
+not among the module's keeper entries. `settlementWindow()` reads `300` on live markets today, so
+read it rather than assuming.
 ([#40](https://github.com/somnia-chain/dreamdex-bot-kit/issues/40),
 [#39](https://github.com/somnia-chain/dreamdex-bot-kit/issues/39))
 
@@ -218,11 +229,25 @@ today, so read it rather than assuming.
 explain it. An `implementation()` staticcall appears in the internal trace of every pool call and
 looks like an access gate.
 **Cause:** a pool address holds 291 bytes of beacon proxy. It staticcalls `implementation()`
-(`0x5c60da1b`) on the beacon and delegatecalls the result. Through markets-sdk 0.28.1 the
-`binaryPoolImpl` constant pointed at 37,936 bytes the beacon no longer resolved to; 0.29.0
-corrected it, and it now matches the live implementation on both networks.
-**Fix:** resolve `implementation()` off the beacon before you read any source, and do not pin
-behaviour to a pool address or to a constant. The code behind a live position can change with no
-address change, and an error table generated against an older implementation decodes less than
-the chain emits.
+(`0x5c60da1b`) on the beacon `0x85C01B5ef4F4ed59caC69749565e309f01b14Dbc` and delegatecalls the
+result. Through markets-sdk 0.28.1 the `binaryPoolImpl` constant was
+`0x82A1FcdaA2daC2fC7D5f9909D43E68021eE966FD`, the implementation behind the pre-beacon pools; the
+beacon has resolved to `0x48e523c9f22f98548d263f0aD444D732e5202C0E` since it was created. 0.29.0
+corrected the constant.
+**Fix:** resolve `implementation()` off the beacon before you read any source, and watch the
+beacon's `Upgraded` event rather than pinning behaviour to a pool address or a constant. The
+beacon is upgradeable, so the code behind a live position can change with no address change, and
+an error table generated against an older implementation decodes less than the chain emits.
 ([#41](https://github.com/somnia-chain/dreamdex-bot-kit/issues/41))
+
+### 23. A cancel from a contract needs 1.5M gas left for the payout
+
+**Symptom:** a contract, such as a vault, calls `cancelOrder` on a live order it owns and the pool
+reverts `InsufficientGasForPayout(uint256 gasLeft)` (`0x782b2567`). If the contract swallows the
+error, the order keeps resting while the contract believes it is gone.
+**Cause:** before sending the refund, the pool requires 1,500,000 gas left, so that a failed send
+can still fall back to crediting the pool vault.
+**Fix:** forward generously. Measured on one cancel sent straight to the pool: a 1,650,000 gas
+limit reverts and 1,700,000 passes. A contract adds its own overhead on top, and in a batch each
+payout needs the reserve at the moment it runs.
+([#38](https://github.com/somnia-chain/dreamdex-bot-kit/issues/38))
