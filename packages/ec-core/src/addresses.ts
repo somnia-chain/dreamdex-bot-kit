@@ -15,6 +15,9 @@
 // installable from a plain `npm install`.
 //
 // Verified against smart-contracts/deployments/<chainId>/ on 2026-07-24.
+// `clobFactory`, `binaryPoolImpl` and `binaryPoolBeacon` re-checked on-chain on
+// 2026-09-22, both networks: the module's `clobFactory()` and the beacon's
+// `implementation()`. They match markets-sdk 0.30.0's bundled addresses.
 // The protocol core is CREATE3-deterministic, so it is identical on both
 // networks; only `marketCreator` and the collateral token differ.
 //
@@ -35,6 +38,7 @@ export interface EcAddresses {
   marketCreator?: Address;
   clobFactory?: Address;
   binaryPoolImpl?: Address;
+  binaryPoolBeacon?: Address;
   binarySettlement?: Address;
   collateralRouter?: Address;
   marketCreatorFactory?: Address;
@@ -47,8 +51,13 @@ export interface EcAddresses {
 const CORE = {
   binaryModule: "0x3ecC694Cef705358864a646142ac17A90E29e388",
   marketsCore: "0x2802504314685D89bF6C992CA5a8e7cC78bc0294",
-  clobFactory: "0xb2BE8EE02F96379DB75f01802384593EBa9bfF04",
-  binaryPoolImpl: "0x82A1FcdaA2daC2fC7D5f9909D43E68021eE966FD",
+  clobFactory: "0x1a478019Ae4d24249a962934af0f129CE98B5e6f",
+  // Every pool is a beacon proxy on `binaryPoolBeacon`; `binaryPoolImpl` is what
+  // the beacon resolves to today. The previous value,
+  // 0x82A1FcdaA2daC2fC7D5f9909D43E68021eE966FD, is the implementation behind the
+  // pre-beacon pools, not an older beacon target.
+  binaryPoolImpl: "0x48e523c9f22f98548d263f0aD444D732e5202C0E",
+  binaryPoolBeacon: "0x85C01B5ef4F4ed59caC69749565e309f01b14Dbc",
   binarySettlement: "0xbF4a49e0Dfd092e5FBE8E5761064C49533e6Ed23",
   collateralRouter: "0xbC0C9834B15ACE38bB50dDaa7d7f7C7CC4DC183C",
   marketCreatorFactory: "0xE6bEE93cE87c9E6e62aCb621caa7832EE47b4F6B",
