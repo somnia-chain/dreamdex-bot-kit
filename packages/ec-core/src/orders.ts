@@ -268,23 +268,75 @@ export function untrackOrder(orderId: bigint | string): void {
 }
 
 /**
- * Cancel every order this process placed and has not already pulled. Call it on
- * the way out. A per-order error is not a failure: an order that filled or
- * expired in the meantime is simply gone.
+ * Reverts that mean the order is already off the book. A filled or cancelled
+ * id no longer names a live order of ours: the pool answers
+ * `IncorrectSender(caller, 0x0)` for an empty slot, `IncorrectSender(caller,
+ * other)` when another trader's newer order reuses the slot, and
+ * `IncorrectOrder()` when our own newer order does. Every other failure (the
+ * post-expiry `CloseNotCaptured()` lock, `InsufficientGasForPayout`, a network
+ * error, a mined revert) leaves the order resting.
  */
-export async function cancelTracked(ctx: EcContext): Promise<{ cancelled: number; tracked: number }> {
+const GONE_REVERTS = new Set(["IncorrectSender", "IncorrectOrder"]);
+
+/** True when a cancel failed only because the order was already filled or pulled. */
+export function isOrderGone(err: unknown): boolean {
+  const name = (err as { errorName?: unknown } | null)?.errorName;
+  return typeof name === "string" && GONE_REVERTS.has(name);
+}
+
+const errText = (err: unknown) => (err instanceof Error ? err.message : String(err)).split("\n")[0];
+const log = (s: string) => console.log(`${new Date().toISOString()} ${s}`);
+
+/**
+ * Cancel one order through the unified API without letting a failure stop the
+ * caller's loop. "cancelled": pulled now. "gone": it had already filled or been
+ * pulled. "failed": it may still be resting, and the reason is logged.
+ */
+export async function tryCancel(
+  ctx: EcContext,
+  orderId: string,
+  symbol: string,
+): Promise<"cancelled" | "gone" | "failed"> {
+  try {
+    await ctx.exchange.cancelOrder(orderId, symbol);
+  } catch (err) {
+    if (!isOrderGone(err)) {
+      log(`cancel ${orderId} on ${symbol} failed, the order may still be resting: ${errText(err)}`);
+      return "failed";
+    }
+    untrackOrder(orderId);
+    return "gone";
+  }
+  untrackOrder(orderId);
+  return "cancelled";
+}
+
+/**
+ * Cancel every order this process placed and has not already pulled. Call it on
+ * the way out. An order that filled or was pulled in the meantime is simply
+ * gone. Any other failure is logged and counted in `failed`, and the order stays
+ * tracked, because it may still be resting.
+ */
+export async function cancelTracked(
+  ctx: EcContext,
+): Promise<{ cancelled: number; tracked: number; failed: number }> {
   const tracked = restingOrders.size;
   let cancelled = 0;
+  let failed = 0;
   for (const [id, onchain] of [...restingOrders]) {
     try {
       await cancelById(ctx, onchain, id);
       cancelled++;
-    } catch {
-      // Filled, expired, or already pulled — nothing left to cancel.
+    } catch (err) {
+      if (!isOrderGone(err)) {
+        failed++;
+        log(`cancel ${id} failed, the order may still be resting: ${errText(err)}`);
+        continue;
+      }
     }
     restingOrders.delete(id);
   }
-  return { cancelled, tracked };
+  return { cancelled, tracked, failed };
 }
 
 /**
@@ -318,9 +370,7 @@ export async function cancelVenueOrders(ctx: EcContext): Promise<number> {
   for (const m of await activeMarkets(ctx, { max: 100 })) {
     const { yes } = outcomeSymbols(m);
     for (const o of await ctx.exchange.fetchOpenOrders(yes).catch(() => [])) {
-      await ctx.exchange.cancelOrder(o.id, yes).catch(() => undefined);
-      untrackOrder(o.id);
-      cancelled++;
+      if ((await tryCancel(ctx, o.id, yes)) === "cancelled") cancelled++;
     }
   }
   return cancelled;

@@ -14,7 +14,7 @@
     "test:watch": "vitest"
   },
   "dependencies": {
-    "@somnia-chain/markets-sdk": "^0.28.1",
+    "@somnia-chain/markets-sdk": "^0.30.0",
     "dotenv": "^16.4.5",
     "viem": "^2.21.0"
   },

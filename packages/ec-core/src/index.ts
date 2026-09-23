@@ -44,6 +44,8 @@ export {
   placeLimit,
   cancelTracked,
   cancelVenueOrders,
+  tryCancel,
+  isOrderGone,
   netPosition,
   untrackOrder,
   sellableSize,

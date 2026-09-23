@@ -49,7 +49,7 @@ import {
   placeLimit,
   cancelTracked,
   cancelVenueOrders,
-  untrackOrder,
+  tryCancel,
   sellableSize,
   type EcContext,
   type UnifiedMarket,
@@ -127,10 +127,9 @@ async function quoteOne(ctx: EcContext, market: UnifiedMarket): Promise<void> {
   // Cancel our stale quotes on this market before re-posting.
   if (!ctx.config.dryRun) {
     const open = await ctx.exchange.fetchOpenOrders(yes);
-    for (const o of open) {
-      await ctx.exchange.cancelOrder(o.id, yes);
-      untrackOrder(o.id); // pulled by another route; drop it from the shutdown list
-    }
+    // One failed cancel must not skip the rest; tryCancel also drops a pulled or
+    // already-filled order from the shutdown list.
+    for (const o of open) await tryCancel(ctx, o.id, yes);
   }
 
   // Past the cap, quote only the side that unwinds. Fills arrive unevenly, so a
