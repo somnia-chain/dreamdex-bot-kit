@@ -191,11 +191,12 @@ export function loadConfig(): EcConfig {
     // the SDK (binary market rows carry no tickSize/lotSize, unlike spot/perp),
     // so they come from config.
     //   mainnet: 1e15 for both, per venues.json `bookParams` on the USDso venue.
-    //   testnet: measured — the venue accepted orders down to 1 raw unit
-    //            (0.000001 share), i.e. no lot constraint in practice.
-    // Override if a venue tightens them.
+    //   testnet: 1e3 for both (0.001 share). Measured 2026-09-22: every live
+    //            testnet pool returns getOrderBookParameters() = 1000/1000/1000,
+    //            and a quantity of 1500 reverts InvalidQuantity(1500, 1000).
+    // Override if a venue changes them.
     tick: BigInt(num("MM_TICK", network === "mainnet" ? 1_000_000_000_000_000 : 1_000)),
-    lot: BigInt(num("MM_LOT", network === "mainnet" ? 1_000_000_000_000_000 : 1)),
+    lot: BigInt(num("MM_LOT", network === "mainnet" ? 1_000_000_000_000_000 : 1_000)),
     inventory: num("MM_INVENTORY", network === "mainnet" ? 1 : 200),
     maxMarkets: num("MM_MAX_MARKETS", 8),
     faucetEnabled:

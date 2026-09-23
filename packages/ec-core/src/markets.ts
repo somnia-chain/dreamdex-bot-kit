@@ -177,22 +177,21 @@ export function toRawUnits(human: number, decimals: number): bigint {
 /**
  * Snap an order size DOWN to the venue's lot grid (`MM_LOT`).
  *
- * Use this instead of the SDK's `exchange.amountToPrecision()`. That helper
- * rounds binary sizes to a WHOLE SHARE, because binary market rows carry no
- * `lotSize` for it to read. On testnet we measured the venue accepting orders
- * down to 1 raw unit, yet `amountToPrecision` floors 0.5 to 0; on the mainnet
- * USDso venue (lot 1e15 = 0.001 share) it floors every sub-cent size to 0.
+ * Use this rather than the SDK's `exchange.amountToPrecision()`, which floors to
+ * the same 0.001-share lot on markets-sdk 0.30.0 but cannot see an `MM_LOT`
+ * override. The lot is 1e3 raw on the 6-decimal testnet and 1e15 on the
+ * 18-decimal mainnet USDso venue.
  *
  * How strict the grid actually is varies by venue, so this trusts `MM_LOT`
  * rather than guessing. Returns 0 when the amount is below one lot; callers
  * must skip, not send.
  *
- * On the 18-decimal mainnet venue the returned size can be slightly SMALLER than
- * you asked for (0.05 → 0.047). That is not a rounding bug: the unified API takes
- * a JS number and converts it with `toFixed(18)`, and most decimals don't survive
- * that round-trip exactly (0.05 becomes …0003, which is off the lot grid and the
- * book rejects). This returns the largest size that actually round-trips. If you
- * need an exact quantity, bypass the float path and use the raw trader:
+ * On the 18-decimal mainnet venue the returned size can be SMALLER than you
+ * asked for (0.05 → 0.047, 0.137 → 0.125). `toRawUnits` converts through
+ * `toFixed(18)`, and most decimals don't survive that exactly (0.05 becomes
+ * …0003, which is off the lot grid and the book rejects), so this returns the
+ * largest size whose `toRawUnits` is an exact lot multiple. If you need an exact
+ * quantity, bypass the float path and use the raw trader:
  * `ctx.exchange.trader.placeOrder({ …, quantity })` takes a bigint directly.
  */
 export function quantize(ctx: EcContext, human: number): number {
