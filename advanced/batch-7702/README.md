@@ -12,8 +12,9 @@ or place + place across pairs).
 
 ## How it works
 
-[EIP-7702](https://eips.ethereum.org/EIPS/eip-7702) lets an EOA temporarily adopt a contract's
-code for one transaction. We:
+[EIP-7702](https://eips.ethereum.org/EIPS/eip-7702) lets an EOA adopt a contract's code. The
+delegation is **not** scoped to one transaction: it stays on the account until the account signs
+another authorization, and while it is there the account answers calls from anyone. So we:
 
 1. **Delegate** the wallet to the [`DreamDexVolumeBatch7702`](contracts/DreamDexVolumeBatch7702.sol)
    implementation (sign an authorization).
@@ -22,6 +23,29 @@ code for one transaction. We:
    wallet IOC-buys (the pool auto-pulls quote and auto-delivers the base back to us) and then
    IOC-sells **exactly the base it just received** (measured by balance delta, which handles
    partial fills). Uses the modern wallet auto-pull model — no vault step.
+3. **Clear the delegation** by authorizing the zero address, whether or not the round-trip
+   succeeded, so the wallet goes back to being a plain EOA.
+
+## Safety
+
+A delegated account runs the implementation's code for **every** call it receives, from anyone, for
+as long as the delegation is installed. Two consequences this example takes seriously:
+
+- `atomicRoundTrip` only accepts calls where `msg.sender == address(this)`, which under delegation
+  means the wallet calling itself. A stranger's call reverts.
+- The script clears the delegation at the end of every run, and each token approval is taken back
+  in the same transaction that granted it, so nothing is left standing afterwards.
+
+Check any wallet with `cast code <address>`: an empty result is a plain EOA, and a result starting
+with `0xef0100` is a live delegation, followed by the implementation address. If a wallet of yours
+still carries one from an earlier run of this example, clear it:
+
+```bash
+npm run clear -w batch-7702   # PRIVATE_KEY in .env, authorizes the zero address
+```
+
+If that wallet also has leftover token approvals from an older version, set them back to zero from
+the wallet itself.
 
 ## Run
 
@@ -42,6 +66,7 @@ subsequent runs skip the deploy.
 [7702] deployed at 0x…  (tx 0x…)
 [7702] tx 0x… — waiting for receipt…
 [7702] status=success gasUsed=… logs=13     ← logs>0 means the round-trip actually ran
+[7702] cleared delegation 0x… from 0x… (tx 0x…)
 ```
 
 ## The one subtlety that will bite you

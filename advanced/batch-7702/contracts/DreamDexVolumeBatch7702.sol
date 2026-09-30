@@ -47,6 +47,17 @@ contract DreamDexVolumeBatch7702 {
 
     event RoundTrip(address indexed pool, uint256 boughtBase, uint256 buyPrice, uint256 sellPrice);
 
+    /// @dev A 7702 delegation stays on the account until it is replaced or cleared, so this code
+    ///      keeps answering calls long after the batch that installed it. Every entry point is
+    ///      therefore restricted to the wallet itself: under delegation the wallet's own call
+    ///      arrives with `msg.sender == address(this)`, and nobody else's does. Without this,
+    ///      any stranger could call a delegated wallet with a `pool` of their own and have the
+    ///      wallet approve it for the wallet's tokens.
+    modifier onlySelf() {
+        require(msg.sender == address(this), "only self");
+        _;
+    }
+
     /// @notice ERC-20 base pair: IOC buy, then IOC sell exactly what the buy
     ///         acquired. Requires an ERC-20 base (use a pegged pair like
     ///         USDC.e:USDso to keep the round-trip near flat).
@@ -58,19 +69,23 @@ contract DreamDexVolumeBatch7702 {
         uint256 sellPrice,
         uint256 quantity,
         uint64 expireTimestampNs
-    ) external {
+    ) external onlySelf {
         require(quantity > 0 && buyPrice > 0 && sellPrice > 0, "bad args");
 
-        // Let the pool auto-pull quote (buy) and base (sell) from this wallet.
-        IERC20(quoteToken).approve(pool, type(uint256).max);
-        IERC20(baseToken).approve(pool, type(uint256).max);
-
+        // Each approval is granted for the leg that needs it and taken back in the same
+        // transaction, so the batch leaves no standing allowance behind.
         uint256 baseBefore = IERC20(baseToken).balanceOf(address(this));
+
+        IERC20(quoteToken).approve(pool, type(uint256).max);
         _placeIoc(pool, true, buyPrice, quantity, expireTimestampNs);
+        IERC20(quoteToken).approve(pool, 0);
+
         uint256 bought = IERC20(baseToken).balanceOf(address(this)) - baseBefore;
 
         if (bought > 0) {
+            IERC20(baseToken).approve(pool, type(uint256).max);
             _placeIoc(pool, false, sellPrice, bought, expireTimestampNs);
+            IERC20(baseToken).approve(pool, 0);
         }
         emit RoundTrip(pool, bought, buyPrice, sellPrice);
     }

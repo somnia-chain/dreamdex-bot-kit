@@ -8,11 +8,13 @@
 
 // EIP-7702 atomic round-trip: buy AND sell in a single transaction.
 //
-// EIP-7702 lets an EOA temporarily adopt contract code for one transaction. We
-// delegate our wallet to the DreamDexVolumeBatch7702 implementation, then call
-// atomicRoundTrip on our own address — so, inside one type-4 transaction, the
-// wallet IOC-buys, then IOC-sells exactly what it bought (measured by balance
-// delta). Two fills, one tx: the most gas-efficient way to manufacture volume.
+// EIP-7702 lets an EOA adopt contract code. The delegation is NOT scoped to one
+// transaction: it stays on the account until it is replaced or cleared, and
+// while it is there the account answers calls from anyone. So we delegate the
+// wallet to the DreamDexVolumeBatch7702 implementation, call atomicRoundTrip on
+// our own address — inside one type-4 transaction the wallet IOC-buys, then
+// IOC-sells exactly what it bought (measured by balance delta) — and then clear
+// the delegation again, whether or not the round-trip succeeded.
 //
 // This script compiles the contract (solc), deploys it once if needed, then runs
 // the delegated round-trip. ERC-20 pair only (use a pegged pair).
@@ -24,6 +26,7 @@ import { fileURLToPath } from "node:url";
 import { createRequire } from "node:module";
 import { encodeFunctionData } from "viem";
 import { createChainContext, Pool, buildExpireNs, toRaw, alignToTick, alignToLot } from "@dreamdex-bot-kit/core";
+import { clearDelegation } from "./clear-delegation.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const require = createRequire(import.meta.url);
@@ -108,17 +111,23 @@ async function main(): Promise<void> {
   // signed at nonce+1. Without it the delegation is invalid and the call is a
   // silent no-op (tx succeeds but the contract code never runs).
   const authorization = await ctx.walletClient.signAuthorization({ account: ctx.account, contractAddress: impl, executor: "self" });
-  const hash = await ctx.walletClient.sendTransaction({
-    account: ctx.account,
-    chain: ctx.walletClient.chain,
-    to: ctx.account.address,
-    data,
-    authorizationList: [authorization],
-    gas: gasLimit,
-  });
-  console.log(`[7702] tx ${hash} — waiting for receipt…`);
-  const receipt = await ctx.publicClient.waitForTransactionReceipt({ hash });
-  console.log(`[7702] status=${receipt.status} gasUsed=${receipt.gasUsed} logs=${receipt.logs.length}`);
+  try {
+    const hash = await ctx.walletClient.sendTransaction({
+      account: ctx.account,
+      chain: ctx.walletClient.chain,
+      to: ctx.account.address,
+      data,
+      authorizationList: [authorization],
+      gas: gasLimit,
+    });
+    console.log(`[7702] tx ${hash} — waiting for receipt…`);
+    const receipt = await ctx.publicClient.waitForTransactionReceipt({ hash });
+    console.log(`[7702] status=${receipt.status} gasUsed=${receipt.gasUsed} logs=${receipt.logs.length}`);
+  } finally {
+    // The authorization is applied before the call runs, so the delegation is on
+    // the account even when the round-trip reverts. Always take it back off.
+    await clearDelegation(ctx);
+  }
   if (!process.env.IMPL_ADDRESS) console.log(`[7702] tip: set IMPL_ADDRESS=${impl} to reuse this deployment.`);
 }
 
