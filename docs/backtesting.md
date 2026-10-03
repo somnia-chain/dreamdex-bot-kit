@@ -75,7 +75,9 @@ Adapters force `dryRun: false` so orders hit the simulator (live dry-run only lo
 
 ### Limitations (read these)
 
-- **No historical CLOB** — book is synthetic from OHLCV unless you supply `--depth-dir`
+- **No historical CLOB** — book is synthetic from OHLCV unless you supply `--depth-dir`.
+  (Real order-level history does exist — `scripts/order-history.ts` pulls market-wide
+  orders + fills from the markets indexer — but the replay itself still synthesizes the book.)
 - **No gas** — `gasUsed` is always `0`
 - **Bar timing** — one strategy callback per candle; MM cooldowns are zeroed for replay
 - **No silent on-chain rejections** beyond PostOnly cross / FOK / minQty

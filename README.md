@@ -114,7 +114,8 @@ New to all this? Read [docs/getting-started.md](docs/getting-started.md) end to 
 
 Small read-only / cleanup utilities in [`scripts/`](scripts) (run with `npx tsx scripts/<name>.ts`):
 `doctor.ts` (setup + balance check), `operator-setup.ts` (one-time [session-key](docs/session-keys.md) setup), `inspect-and-clean.ts` (list & cancel any open orders),
-`one-ioc.ts` (place a single IOC order to test the full lifecycle), `backtest.ts` ([historical replay](docs/backtesting.md) — also `npm run backtest`).
+`one-ioc.ts` (place a single IOC order to test the full lifecycle), `backtest.ts` ([historical replay](docs/backtesting.md) — also `npm run backtest`),
+`order-history.ts` (market-wide order + fill history for a time window, from the markets indexer — `SYMBOL=USDC.e:USDso FROM=2026-10-02 npx tsx scripts/order-history.ts`).
 
 ## Networks
 
