@@ -58,6 +58,13 @@ const TOPICS = {
   OrderReduced: "0xf6871493c13434b4a7fa02b5540fb6188e8db3f63e6b7013db073e9535b5a860",
   OrderAmended: "0x55bc401cf5a2a5a9291c8ec209b7a004016d780b1bdf933cb240e6e8556bba1b",
   OrderCancelledSelfMatch: "0x06338cfffed6cc456515196256e4c180e4639f134af550d7fca7a4995aa6b4e7",
+  // A book that amends IN PLACE emits only this: the order keeps its id and no
+  // OrderCancelled / OrderPlaced follows, so without it an amend looks like
+  // nothing happened (IOrderBook.sol, and PROTOCOL.md's amend section).
+  OrderAmendedInPlace: "0x7ded0d4fa3f28beb90815f9a604f5aa43a272d699e9fc5a9be46f77de4cb40e2",
+  // Residual quantity actually entered the priority index. Without it, an order
+  // that never rested and one still resting share the same bucket below.
+  OrderRested: "0xcdd45acd62788abc10f79d86fac34df2a63e1a3b20f061c5bcf431ff6a09b866",
 } as const;
 const ALL_TOPICS = Object.values(TOPICS);
 
@@ -65,9 +72,9 @@ const ALL_TOPICS = Object.values(TOPICS);
 function parseTime(v: string | undefined, fallback: bigint): bigint {
   if (!v) return fallback;
   if (/^\d+$/.test(v)) return BigInt(v); // epoch seconds
-  const t = BigInt(Math.floor(Date.parse(v) / 1000));
-  if (Number.isNaN(Number(t))) throw new Error(`bad time: ${v}`);
-  return t;
+  const ms = Date.parse(v);
+  if (Number.isNaN(ms)) throw new Error(`bad time: ${v}`);
+  return BigInt(Math.floor(ms / 1000));
 }
 
 const now = Math.floor(Date.now() / 1000);
@@ -208,7 +215,9 @@ type ChainOrder = {
   pool: string; symbol: string; placedBlock: string; placedTx: string;
   fills: { quantityFilled: string; fillPrice: string; block: string; tx: string; remaining: string; counterpartyOrderId: string }[];
   reductions: { newQuantity: string; block: string; tx: string }[];
+  amendsInPlace: { userData: string; price: string; fullQuantity: string; expireTimestampNs: string; block: string; tx: string }[];
   cancelled?: LogMeta; expired?: LogMeta; selfMatchCancelled?: LogMeta; amendedTo?: string;
+  rested?: LogMeta;
   status?: string;
 };
 
@@ -229,6 +238,7 @@ function handlePlaced(log: Log, orders: Map<string, ChainOrder>, pool: string, s
     placedTx: log.transactionHash,
     fills: [],
     reductions: [],
+    amendsInPlace: [],
   });
 }
 
@@ -277,6 +287,28 @@ function handleLog(log: Log, orders: Map<string, ChainOrder>, pool: string, symb
   } else if (topic === TOPICS.OrderAmended) {
     const o = orders.get(`${pool}:${id}`);
     if (o) o.amendedTo = BigInt(log.topics[2]).toString();
+  } else if (topic === TOPICS.OrderRested) {
+    const o = orders.get(`${pool}:${id}`);
+    if (o) o.rested = meta;
+  } else if (topic === TOPICS.OrderAmendedInPlace) {
+    const o = orders.get(`${pool}:${id}`);
+    if (o) {
+      // The order keeps its id and its terms are replaced wholesale; the
+      // remaining quantity after an in-place amend is always fullQuantity.
+      const amend = {
+        userData: BigInt(word(log.data, 0)).toString(),
+        price: BigInt(word(log.data, 1)).toString(),
+        fullQuantity: BigInt(word(log.data, 2)).toString(),
+        expireTimestampNs: BigInt(word(log.data, 3)).toString(),
+        ...meta,
+      };
+      o.amendsInPlace.push(amend);
+      o.userData = amend.userData;
+      o.price = amend.price;
+      o.fullQuantity = amend.fullQuantity;
+      o.quantityRemaining = amend.fullQuantity;
+      o.expireTimestampNs = amend.expireTimestampNs;
+    }
   }
 }
 
@@ -327,8 +359,12 @@ async function scanRange(
 
 async function viaChain(): Promise<{ orders: ChainOrder[]; fills: ChainFill[]; pools: { symbol: string; pool: string }[] }> {
   const pools = await fetchMarkets();
-  const fromBlock = await blockAtTime(FROM);
-  const toBlock = await blockAtTime(UNTIL);
+  // blockAtTime returns the LAST block at or before a timestamp. At 100 ms blocks
+  // a second holds about ten of them, so taking it directly would start the scan
+  // late and end it long, against the indexer's [FROM, UNTIL) on timestamps.
+  // First block at or after FROM, and last block strictly before UNTIL:
+  const fromBlock = (await blockAtTime(FROM - 1n)) + 1n;
+  const toBlock = await blockAtTime(UNTIL - 1n);
   console.error(`  blocks ${fromBlock}..${toBlock}`);
   const orders = new Map<string, ChainOrder>();
   const fills: ChainFill[] = [];
@@ -358,7 +394,10 @@ async function viaChain(): Promise<{ orders: ChainOrder[]; fills: ChainFill[]; p
     else if (o.fills.length > 0) {
       const last = o.fills[o.fills.length - 1];
       o.status = last.remaining === "0" ? "filled" : "partially_filled";
-    } else o.status = o.reductions.length ? "reduced" : "open_or_terminal_outside_window";
+    } else if (o.reductions.length) o.status = "reduced";
+    // An order that never rested (an IOC that found no match) and one still on
+    // the book are different outcomes; OrderRested is what separates them.
+    else o.status = o.rested ? "open_or_terminal_outside_window" : "never_rested";
     delete o.cancelled; delete o.expired; delete o.selfMatchCancelled;
     return o;
   });
