@@ -54,20 +54,39 @@ function num(key: string, fallback: number): number {
   return v === undefined || v === "" ? fallback : Number(v);
 }
 
-function compile(): { abi: unknown[]; bytecode: `0x${string}` } {
+function compile(): { abi: unknown[]; bytecode: `0x${string}`; runtime: `0x${string}` } {
   const solc = require("solc");
   const file = "DreamDexVolumeBatch7702.sol";
   const source = readFileSync(path.resolve(__dirname, "../contracts", file), "utf8");
   const input = {
     language: "Solidity",
     sources: { [file]: { content: source } },
-    settings: { optimizer: { enabled: true, runs: 200 }, outputSelection: { "*": { "*": ["abi", "evm.bytecode.object"] } } },
+    settings: {
+      optimizer: { enabled: true, runs: 200 },
+      outputSelection: { "*": { "*": ["abi", "evm.bytecode.object", "evm.deployedBytecode.object"] } },
+    },
   };
   const out = JSON.parse(solc.compile(JSON.stringify(input)));
   const errors = (out.errors ?? []).filter((e: { severity: string }) => e.severity === "error");
   if (errors.length) throw new Error("solc errors:\n" + errors.map((e: { formattedMessage: string }) => e.formattedMessage).join("\n"));
   const c = out.contracts[file]["DreamDexVolumeBatch7702"];
-  return { abi: c.abi, bytecode: ("0x" + c.evm.bytecode.object) as `0x${string}` };
+  return {
+    abi: c.abi,
+    bytecode: ("0x" + c.evm.bytecode.object) as `0x${string}`,
+    runtime: ("0x" + c.evm.deployedBytecode.object) as `0x${string}`,
+  };
+}
+
+/**
+ * Drops the trailing CBOR metadata, whose last two bytes hold its own length.
+ * Two compiles of the same source differ there (paths, compiler build), so the
+ * comparison below only looks at the code itself.
+ */
+function withoutMetadata(code: string): string {
+  const hex = code.startsWith("0x") ? code.slice(2) : code;
+  if (hex.length < 4) return hex;
+  const tail = (parseInt(hex.slice(-4), 16) + 2) * 2;
+  return tail < hex.length ? hex.slice(0, hex.length - tail) : hex;
 }
 
 async function main(): Promise<void> {
@@ -77,11 +96,21 @@ async function main(): Promise<void> {
   const crossBps = num("BATCH_CROSS_BPS", 5);
   const gasLimit = BigInt(num("BATCH_GAS_LIMIT", 6_000_000));
 
-  const { abi, bytecode } = compile();
+  const { abi, bytecode, runtime } = compile();
   console.log(`[7702] contract compiled OK (bytecode ${bytecode.length} chars)`);
 
   // Deploy the implementation once (or reuse IMPL_ADDRESS).
   let impl = process.env.IMPL_ADDRESS as `0x${string}` | undefined;
+  if (impl) {
+    // A pinned address can hold an older build of the contract, and the wallet
+    // would then be delegated to that. Only reuse it when the code there is the
+    // code we just compiled.
+    const onChain = (await ctx.publicClient.getCode({ address: impl })) ?? "0x";
+    if (withoutMetadata(onChain) !== withoutMetadata(runtime)) {
+      console.log(`[7702] IMPL_ADDRESS ${impl} does not hold this build, deploying a fresh one`);
+      impl = undefined;
+    }
+  }
   if (!impl) {
     console.log("[7702] deploying implementation…");
     const hash = await ctx.walletClient.deployContract({ abi, bytecode, account: ctx.account, chain: ctx.walletClient.chain });

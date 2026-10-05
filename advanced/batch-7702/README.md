@@ -59,7 +59,9 @@ npm run start -w batch-7702
 ```
 
 On the first run it prints the deployed implementation address and a tip to set `IMPL_ADDRESS` so
-subsequent runs skip the deploy.
+subsequent runs skip the deploy. A pinned address is only reused when the code at it matches the
+contract in this folder; if you pinned an older build, the script deploys a fresh one and delegates
+to that instead.
 
 ```
 [7702] contract compiled OK ...
