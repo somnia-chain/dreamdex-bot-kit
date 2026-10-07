@@ -140,7 +140,13 @@ async function main(): Promise<void> {
     await sleep(POLL_MS, stopped);
   }
 
-  console.log("stopped. The position is left open deliberately: closing it on exit would realise PnL nobody asked to realise.");
+  // Only say a position was left when there is one: the exit above may have just closed it.
+  const left = me ? await positionIn(ctx.exchange, market) : undefined;
+  console.log(
+    left
+      ? "stopped. The position is left open deliberately: closing it on exit would realise PnL nobody asked to realise."
+      : "stopped, no position open.",
+  );
   await shutdown(ctx);
 }
 

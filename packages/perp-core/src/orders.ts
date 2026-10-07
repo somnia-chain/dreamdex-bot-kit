@@ -14,6 +14,7 @@
 // here would return sizes the pool then rejects.
 
 import { ORDER_TYPE, type SomniaMarkets } from "@somnia-chain/markets-sdk";
+import { formatUnits } from "viem";
 import { assertTxOk } from "./exchange.js";
 import { alignPrice, alignQuantity, type PerpMarket } from "./markets.js";
 import { cancelFor, placeFor, type TradingKey } from "./operator.js";
@@ -135,8 +136,9 @@ export async function placePerp(args: PlaceArgs): Promise<PlaceResult> {
       ? (args.price * (10_000n + slip)) / 10_000n
       : (args.price * (10_000n - slip)) / 10_000n;
   const price = alignPrice(adjusted, market.info);
-  const human = Number(quantity) / 10 ** market.info.baseDecimals;
-  const px = Number(price) / 1e18;
+  // Exact decimals from the raw units: the float division printed 2569.3199999999997.
+  const human = formatUnits(quantity, market.info.baseDecimals);
+  const px = formatUnits(price, 18);
   const what = `${label ?? "order"} ${side} ${human} ${market.info.baseSymbol} @ ${px}`;
 
   if (ctx.config.dryRun) {
