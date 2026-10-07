@@ -82,7 +82,11 @@ async function main(): Promise<void> {
         `health ${Number.isFinite(ratio) ? ratio.toFixed(2) + "x" : "∞ (no position)"}`,
     );
     if (snap.equity === 0n && snap.unlocked === 0n) {
-      console.log("           ^ empty bank: approve the MarginBank and deposit collateral before trading.");
+      console.log(
+        cfg.owner
+          ? "           ^ empty bank: move USDso into the Perps account in the app (Perps ⇆ Spot) before trading."
+          : "           ^ empty bank: approve the MarginBank and deposit collateral before trading.",
+      );
     }
 
     const positions = await ctx.exchange.fetchPositions();
