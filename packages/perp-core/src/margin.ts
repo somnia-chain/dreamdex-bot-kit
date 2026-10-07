@@ -153,11 +153,11 @@ export function marginForNotional(notionalUsdso: number, market: PerpMarket): nu
  * `ownerOnly` says so, so the strategy can tell the person to set it in the app.
  */
 export async function ensureLeverage(
-  ctx: { exchange: SomniaMarkets; config: { dryRun: boolean }; tradingKey?: unknown },
+  ctx: { exchange: SomniaMarkets; config: { dryRun: boolean; owner?: string }; tradingKey?: unknown },
   market: PerpMarket,
   account: `0x${string}`,
   leverageX: number,
-): Promise<{ changed: boolean; from: number; to: number; ownerOnly?: boolean }> {
+): Promise<{ changed: boolean; from: number; to: number; ownerOnly?: boolean; dryRun?: boolean }> {
   const current = await ctx.exchange.client.getPerpMaxLeverage({
     marginBank: market.info.marginBank,
     account,
@@ -165,10 +165,11 @@ export async function ensureLeverage(
   });
   // 0 means "never set", which carries no extra requirement at all.
   if (current === leverageX) return { changed: false, from: current, to: leverageX };
-  if (ctx.tradingKey) return { changed: false, from: current, to: current, ownerOnly: true };
+  // OWNER_ADDRESS without a key is still someone else's account: nothing here can change its lever.
+  if (ctx.tradingKey || ctx.config.owner) return { changed: false, from: current, to: current, ownerOnly: true };
   if (ctx.config.dryRun) {
     console.log(`[dry-run] would set leverage on ${market.display} from ${current || "unset"} to ${leverageX}x`);
-    return { changed: false, from: current, to: leverageX };
+    return { changed: false, from: current, to: leverageX, dryRun: true };
   }
   await ctx.exchange.trader.setPerpLeverage({ pool: market.info.poolAddress, leverageX });
   return { changed: true, from: current, to: leverageX };

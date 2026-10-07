@@ -104,7 +104,8 @@ async function main(): Promise<void> {
   // returns is the one this bot will trade against.
   if (me) {
     const lev = await ensureLeverage(ctx, market, me, LEVERAGE);
-    console.log(
+    // A dry run has already said what it would set.
+    if (!lev.dryRun) console.log(
       lev.changed
         ? `leverage set to ${lev.to}x on ${market.display} (was ${lev.from || "unset"})`
         : lev.ownerOnly
@@ -240,7 +241,7 @@ async function main(): Promise<void> {
     }
   }
 
-  console.log(bracket.sent || exited ? "done" : "done (nothing was armed)");
+  console.log(bracket.sent || exited || watchedExits ? "done" : "done (nothing was armed)");
   await shutdown(ctx);
 }
 
