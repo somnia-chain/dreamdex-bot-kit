@@ -11,12 +11,20 @@
 
 import { SomniaMarkets, SOMNIA_TESTNET_ADDRESSES } from "@somnia-chain/markets-sdk";
 import { loadConfig, loadEnv, makeChain, type PerpConfig } from "./config.js";
+import type { PerpMarket } from "./markets.js";
+import { createTradingKey, linkProblem, linkStatus, type TradingKey } from "./operator.js";
 
 export interface PerpContext {
   exchange: SomniaMarkets;
   config: PerpConfig;
   /** True when a signer (PRIVATE_KEY) is loaded, which writes require. */
   canTrade: boolean;
+  /**
+   * Set in trading-key mode (OWNER_ADDRESS). The exchange then reads as the
+   * owner, so `exchange.walletAddress`, positions and margin are the account's,
+   * and order writes go through this key as `…For` calls.
+   */
+  tradingKey?: TradingKey;
 }
 
 /**
@@ -25,6 +33,10 @@ export interface PerpContext {
  * `wsRpcUrl` is not optional even for a read-only bot: chain access itself is
  * websocket-backed, so `loadMarkets()` throws `NotConfiguredError` without it
  * rather than falling back to HTTP.
+ *
+ * The bundled testnet address set serves Hideki too: the singletons the SDK
+ * looks up sit at the same deterministic addresses there, and the perp pool,
+ * MarginBank and stop registry come off each market row rather than from it.
  */
 export function createExchange(opts: { withSigner?: boolean } = {}): PerpContext {
   loadEnv();
@@ -36,11 +48,28 @@ export function createExchange(opts: { withSigner?: boolean } = {}): PerpContext
     );
   }
 
-  const exchange = new SomniaMarkets({
+  const chain = makeChain(config);
+  const base = {
     indexerUrl: config.indexerUrl,
-    chain: makeChain(config),
+    chain,
     wsRpcUrl: config.wsRpcUrl,
     addresses: SOMNIA_TESTNET_ADDRESSES,
+  };
+
+  if (config.owner) {
+    // Trading-key mode. The SDK gets the owner as a bare address, which makes it
+    // read-only for that account: every read the strategies already make
+    // (positions, margin, sizing, the close preview) lands on the account, and
+    // the SDK cannot send anything. Writes go through the key below instead.
+    const exchange = new SomniaMarkets({ ...base, account: config.owner });
+    const tradingKey = config.privateKey
+      ? createTradingKey({ owner: config.owner, privateKey: config.privateKey, chain, rpcUrl: config.rpcUrl })
+      : undefined;
+    return { exchange, config, canTrade: Boolean(tradingKey), tradingKey };
+  }
+
+  const exchange = new SomniaMarkets({
+    ...base,
     // Loaded whenever one is configured, including under DRY_RUN: the margin
     // preflight and every position read are account-scoped, and a dry run that
     // reported on no account would be describing a different bot. Writes are
@@ -49,6 +78,28 @@ export function createExchange(opts: { withSigner?: boolean } = {}): PerpContext
   });
 
   return { exchange, config, canTrade: Boolean(config.privateKey) };
+}
+
+/**
+ * The trading-key startup check: is this key linked to OWNER_ADDRESS on this
+ * market? Asks the pool itself, which is the check every order then has to pass.
+ *
+ * `ok` is true outside trading-key mode, and when OWNER_ADDRESS is set without a
+ * key (a read-only watch of the account). Run it once, next to the margin
+ * preflight, so an unlinked key is one sentence at startup rather than an
+ * `OnlyApprovedContracts` revert on every order.
+ */
+export async function tradingKeyCheck(ctx: PerpContext, market: PerpMarket): Promise<{ ok: boolean; message?: string }> {
+  const key = ctx.tradingKey;
+  if (!key) {
+    return ctx.config.owner
+      ? { ok: true, message: `watching ${ctx.config.owner} read-only: set PRIVATE_KEY to the bot key linked to it to trade` }
+      : { ok: true };
+  }
+  const problem = linkProblem(key, await linkStatus(key, market.info.poolAddress), market.display);
+  return problem
+    ? { ok: false, message: problem }
+    : { ok: true, message: `trading key ${key.operator} trades for ${key.owner} on ${market.display}` };
 }
 
 /**

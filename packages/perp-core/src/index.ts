@@ -11,12 +11,24 @@
 
 export {
   createExchange,
+  tradingKeyCheck,
   shutdown,
   assertTxOk,
   sleep,
   onStop,
   type PerpContext,
 } from "./exchange.js";
+export {
+  createTradingKey,
+  linkStatus,
+  linkProblem,
+  placeFor,
+  cancelFor,
+  reduceFor,
+  TRADING_KEY_SELECTOR,
+  type TradingKey,
+  type LinkStatus,
+} from "./operator.js";
 export {
   loadConfig,
   loadEnv,
@@ -57,6 +69,7 @@ export {
   cancelQuietly,
   positionIn,
   closePosition,
+  type WriteCtx,
   type Side,
   type SizingResult,
   type PlaceResult,

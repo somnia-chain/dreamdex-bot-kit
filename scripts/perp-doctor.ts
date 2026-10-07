@@ -16,7 +16,10 @@
 // account is funded and the market is priceable, because a perp order locks
 // from the MarginBank, not the wallet, and an empty bank fails every order.
 //
-//   NETWORK=testnet npx tsx scripts/perp-doctor.ts
+// With OWNER_ADDRESS set (trading-key mode) the account is the owner's, the gas
+// is the bot key's, and it also reports whether the key is linked to the owner.
+//
+//   NETWORK=hideki npx tsx scripts/perp-doctor.ts
 //
 import { formatUnits, parseAbi } from "viem";
 import {
@@ -31,6 +34,7 @@ import {
   markOf,
   fundingApr,
   pendingStops,
+  tradingKeyCheck,
 } from "@dreamdex-bot-kit/perp-core";
 
 const ERC20 = parseAbi(["function balanceOf(address) view returns (uint256)"]);
@@ -44,11 +48,12 @@ async function main(): Promise<void> {
 
   console.log(`\nnetwork  : ${cfg.network} (chain ${cfg.chainId})`);
   console.log(`indexer  : ${cfg.indexerUrl}`);
-  console.log(`wallet   : ${me ?? "(no PRIVATE_KEY — market view only)"}`);
+  console.log(`wallet   : ${me ?? "(no PRIVATE_KEY — market view only)"}${cfg.owner ? " (trading-key mode: the account)" : ""}`);
+  if (ctx.tradingKey) console.log(`bot key  : ${ctx.tradingKey.operator}`);
 
   const markets = await perpMarkets(ctx.exchange, true);
   if (markets.length === 0) {
-    console.log("\nmarkets  : none live (perps are testnet-only; check NETWORK=testnet)");
+    console.log("\nmarkets  : none live (perps run on testnets only; check NETWORK=hideki or NETWORK=testnet)");
     await shutdown(ctx);
     return;
   }
@@ -57,7 +62,12 @@ async function main(): Promise<void> {
   const quoteDp = markets[0].info.quoteDecimals;
   if (me) {
     const pc = ctx.exchange.client.getViemClient();
-    const gas = await pc.getBalance({ address: me });
+    // The key that sends pays the gas: the bot key in trading-key mode.
+    const gas = await pc.getBalance({ address: ctx.tradingKey?.operator ?? me });
+    if (cfg.owner) {
+      const link = await tradingKeyCheck(ctx, markets[0]);
+      console.log(`link     : ${link.ok ? "ok" : "NOT LINKED"}${link.message ? ` · ${link.message}` : ""}`);
+    }
     const bal = await pc.readContract({ address: collateral, abi: ERC20, functionName: "balanceOf", args: [me] });
     console.log(`gas      : ${formatUnits(gas, 18)} ${cfg.chainId === 5031 ? "SOMI" : "STT"}`);
     console.log(`wallet USDso : ${Number(formatUnits(bal, quoteDp)).toFixed(4)} (in-wallet, not margin)`);

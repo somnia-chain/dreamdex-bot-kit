@@ -148,13 +148,16 @@ export function marginForNotional(notionalUsdso: number, market: PerpMarket): nu
  * The cap is a floor on margin rather than a display preference: choosing 10x on
  * a market whose initial margin is 5% means holding 10% instead, and the extra
  * is held against the WHOLE account rather than against this order.
+ *
+ * Only the account itself can set it. A trading key reads it and leaves it, and
+ * `ownerOnly` says so, so the strategy can tell the person to set it in the app.
  */
 export async function ensureLeverage(
-  ctx: { exchange: SomniaMarkets; config: { dryRun: boolean } },
+  ctx: { exchange: SomniaMarkets; config: { dryRun: boolean }; tradingKey?: unknown },
   market: PerpMarket,
   account: `0x${string}`,
   leverageX: number,
-): Promise<{ changed: boolean; from: number; to: number }> {
+): Promise<{ changed: boolean; from: number; to: number; ownerOnly?: boolean }> {
   const current = await ctx.exchange.client.getPerpMaxLeverage({
     marginBank: market.info.marginBank,
     account,
@@ -162,6 +165,7 @@ export async function ensureLeverage(
   });
   // 0 means "never set", which carries no extra requirement at all.
   if (current === leverageX) return { changed: false, from: current, to: leverageX };
+  if (ctx.tradingKey) return { changed: false, from: current, to: current, ownerOnly: true };
   if (ctx.config.dryRun) {
     console.log(`[dry-run] would set leverage on ${market.display} from ${current || "unset"} to ${leverageX}x`);
     return { changed: false, from: current, to: leverageX };

@@ -38,6 +38,7 @@ import {
   sizeForNotional,
   sizeOrder,
   sleep,
+  tradingKeyCheck,
   type PerpMarket,
 } from "@dreamdex-bot-kit/perp-core";
 
@@ -80,10 +81,16 @@ async function main(): Promise<void> {
   );
 
   if (me) {
+    const link = await tradingKeyCheck(ctx, market);
+    if (link.message) console.log(link.message);
+    if (!link.ok && live) process.exit(1);
     const check = await preflight(ctx.exchange, market, me, { requiredUsdso: (NOTIONAL * 2) / Math.max(1, LEVERAGE) });
     console.log(check.message);
     if (!check.ok) process.exit(1);
-    await ensureLeverage(ctx, market, me, LEVERAGE);
+    const lev = await ensureLeverage(ctx, market, me, LEVERAGE);
+    if (lev.ownerOnly) {
+      console.log(`leverage on ${market.display} is ${lev.from ? `${lev.from}x` : "unset"} for this account; a trading key cannot change it, set it in the app.`);
+    }
   }
 
   let resting: Quote = { atMark: 0 };

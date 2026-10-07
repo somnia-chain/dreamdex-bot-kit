@@ -40,6 +40,7 @@ import {
   requireMarket,
   shutdown,
   sleep,
+  tradingKeyCheck,
   type PerpMarket,
 } from "@dreamdex-bot-kit/perp-core";
 
@@ -97,6 +98,15 @@ async function main(): Promise<void> {
   );
   if (!me) {
     console.log("read-only: no PRIVATE_KEY, so health is reported but nothing is closed.");
+  } else {
+    // The app links a trading key on every perp market at once, so one market
+    // answers for all of them.
+    const [first] = await perpMarkets(ctx.exchange);
+    if (first) {
+      const link = await tradingKeyCheck(ctx, first);
+      if (link.message) console.log(link.message);
+      if (!link.ok && live) process.exit(1);
+    }
   }
 
   while (!stopped()) {

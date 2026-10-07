@@ -12,15 +12,22 @@
 // a new pool without its symbol changing.
 //
 // NETWORK selects the deployment, the same variable the spot and EC families
-// already read. Perp pools exist on testnet only today, so `mainnet` is refused
-// at startup rather than trading against an empty market list.
+// already read. Perps run on two test networks: `hideki` (the Tokyo testnet,
+// where the app's testnet accounts and Perps Arena live) and `testnet` (Shannon).
+// `hideki` is the default. There are no perp pools on mainnet, so `mainnet` is
+// refused at startup rather than trading against an empty market list.
+//
+// OWNER_ADDRESS turns on trading-key mode: PRIVATE_KEY is then a bot key linked
+// to that DreamDEX account in the app (wallet → Link a bot → Perps), and every
+// order the bot sends belongs to the account, not to the key. Leave it blank to
+// trade the key's own MarginBank account.
 
-import { defineChain, type Chain } from "viem";
+import { defineChain, isAddress, getAddress, type Chain } from "viem";
 import { config as dotenv } from "dotenv";
 import { existsSync } from "node:fs";
 import { dirname, join } from "node:path";
 
-export type Network = "testnet" | "mainnet";
+export type Network = "hideki" | "testnet" | "mainnet";
 
 let envLoaded = false;
 /** Load the nearest .env walking up from `startDir`, so a strategy in
@@ -71,6 +78,7 @@ export function envBool(name: string, fallback: boolean): boolean {
  * the redeploy case.
  */
 const OPERATOR_REGISTRY: Record<Network, `0x${string}`> = {
+  hideki: "0x6B2FbfeD328FF5F20C0BE7D3C3437613aFFE8D3a",
   testnet: "0x15C7e8CE38F021c5b45d098AaD788f63090bF20A",
   // No perp deployment on mainnet yet; kept so the shape is total and the
   // refusal below stays the single place that says so.
@@ -78,6 +86,12 @@ const OPERATOR_REGISTRY: Record<Network, `0x${string}`> = {
 };
 
 const ENDPOINTS: Record<Network, { rpc: string; ws: string; indexer: string; chainId: number }> = {
+  hideki: {
+    rpc: "https://api.hideki2.infra.testnet.somnia.network",
+    ws: "wss://api.hideki2.infra.testnet.somnia.network/ws",
+    indexer: "https://hideki-dev.smk.somnia.host/v1/graphql",
+    chainId: 50383,
+  },
   testnet: {
     rpc: "https://api.infra.testnet.somnia.network",
     ws: "wss://api.infra.testnet.somnia.network/ws",
@@ -105,32 +119,50 @@ export interface PerpConfig {
   symbol: string;
   /** Signer for writes; undefined = read-only. */
   privateKey?: `0x${string}`;
+  /**
+   * Trading-key mode: the DreamDEX account this key trades for. Orders, margin
+   * and positions are the account's; the key only signs and pays gas.
+   * Undefined = the key trades its own account.
+   */
+  owner?: `0x${string}`;
   /** When true, strategies log intended orders instead of sending them. */
   dryRun: boolean;
 }
 
+/** The networks a perp bot can run on, in the order the error lists them. */
+const PERP_NETWORKS: readonly Network[] = ["hideki", "testnet"];
+
 /**
  * Read and validate the environment.
  *
- * Refuses `NETWORK=mainnet` outright: the perp contracts live on Shannon
- * testnet and the SDK ships those addresses alone, so a mainnet run would
- * connect, find `type === "swap"` empty, and sit there looking healthy. The
- * builder disables the mainnet option for perps, but a hand-edited .env reaches
- * here, which is the case this refusal exists for.
+ * Refuses `NETWORK=mainnet` outright: there are no perp pools on mainnet, so a
+ * mainnet run would connect, find no perp markets, and sit there looking
+ * healthy. The builder disables the mainnet option for perps, but a hand-edited
+ * .env reaches here, which is the case this refusal exists for.
  */
 export function loadConfig(): PerpConfig {
   loadEnv();
-  const raw = (process.env.NETWORK ?? "testnet").toLowerCase();
+  const raw = (process.env.NETWORK ?? "hideki").trim().toLowerCase();
   if (raw === "mainnet") {
     throw new Error(
       "NETWORK=mainnet: there are no perp markets on Somnia mainnet yet, so this bot has nothing to trade. " +
-        "Perp pools are deployed on Shannon testnet (chain 50312); set NETWORK=testnet, or wait for the mainnet launch.",
+        "Perps run on the Hideki testnet (NETWORK=hideki, chain 50383) and on Shannon (NETWORK=testnet, chain 50312).",
     );
   }
-  const network: Network = "testnet";
+  if (!PERP_NETWORKS.includes(raw as Network)) {
+    throw new Error(`NETWORK="${raw}" is not a perp network. Use NETWORK=hideki (Perps Arena) or NETWORK=testnet (Shannon).`);
+  }
+  const network = raw as Network;
   const ep = ENDPOINTS[network];
   const pk = (process.env.PRIVATE_KEY ?? "").trim();
   const registry = (process.env.OPERATOR_PERMISSIONS_REGISTRY ?? "").trim();
+  const ownerRaw = (process.env.OWNER_ADDRESS ?? "").trim();
+  if (ownerRaw && !isAddress(ownerRaw)) {
+    throw new Error(
+      `OWNER_ADDRESS="${ownerRaw}" is not an address. It should be your DreamDEX account (0x followed by 40 hex characters), ` +
+        "or blank to trade this key's own account.",
+    );
+  }
 
   return {
     network,
@@ -141,6 +173,7 @@ export function loadConfig(): PerpConfig {
     operatorRegistry: (registry || OPERATOR_REGISTRY[network]) as `0x${string}`,
     symbol: (process.env.PERP_SYMBOL ?? "").trim(),
     privateKey: pk ? (pk as `0x${string}`) : undefined,
+    owner: ownerRaw ? getAddress(ownerRaw) : undefined,
     dryRun: envBool("DRY_RUN", true),
   };
 }

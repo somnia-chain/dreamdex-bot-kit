@@ -39,6 +39,7 @@ import {
   sizeForNotional,
   sizeOrder,
   sleep,
+  tradingKeyCheck,
 } from "@dreamdex-bot-kit/perp-core";
 
 // Read .env BEFORE the constants below are evaluated. ES modules evaluate
@@ -73,10 +74,16 @@ async function main(): Promise<void> {
   );
 
   if (me) {
+    const link = await tradingKeyCheck(ctx, market);
+    if (link.message) console.log(link.message);
+    if (!link.ok && live) process.exit(1);
     const check = await preflight(ctx.exchange, market, me, { requiredUsdso: NOTIONAL / Math.max(1, LEVERAGE) });
     console.log(check.message);
     if (!check.ok) process.exit(1);
-    await ensureLeverage(ctx, market, me, LEVERAGE);
+    const lev = await ensureLeverage(ctx, market, me, LEVERAGE);
+    if (lev.ownerOnly) {
+      console.log(`leverage on ${market.display} is ${lev.from ? `${lev.from}x` : "unset"} for this account; a trading key cannot change it, set it in the app.`);
+    }
   }
 
   while (!stopped()) {
@@ -115,7 +122,15 @@ async function main(): Promise<void> {
         } else {
           const price = BigInt(Math.round(touch * 1e18));
           const wanted = sizeForNotional(Math.min(NOTIONAL, MAX_POSITION), fresh.info, liveAt);
-          const sized = await sizeOrder(ctx.exchange, { market: fresh, account: me, side, price, wanted, autoPull: true });
+          const sized = await sizeOrder(ctx.exchange, {
+            market: fresh,
+            account: me,
+            side,
+            price,
+            wanted,
+            autoPull: true,
+            tradingKey: ctx.tradingKey,
+          });
           if (!sized.ok) console.log(`entry skipped: ${sized.reason}`);
           else await placePerp({ ctx, market: fresh, side, price, quantity: sized.quantity, orderType: ORDER_TYPE.MARKET, label: "carry entry" });
         }

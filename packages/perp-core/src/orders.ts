@@ -16,6 +16,14 @@
 import { ORDER_TYPE, type SomniaMarkets } from "@somnia-chain/markets-sdk";
 import { assertTxOk } from "./exchange.js";
 import { alignPrice, alignQuantity, type PerpMarket } from "./markets.js";
+import { cancelFor, placeFor, type TradingKey } from "./operator.js";
+
+/** What an order write needs: the exchange, DRY_RUN, and the trading key when there is one. */
+export interface WriteCtx {
+  exchange: SomniaMarkets;
+  config: { dryRun: boolean };
+  tradingKey?: TradingKey;
+}
 
 export type Side = "long" | "short";
 
@@ -27,8 +35,13 @@ export interface SizingRequest {
   price: bigint;
   /** Desired size in raw base units; clamped to what the pool allows. */
   wanted: bigint;
-  /** Let the pool pull the shortfall from the wallet at placement. */
+  /**
+   * Let the pool pull the shortfall from the wallet at placement. Only an order
+   * its owner sends can pull, so a trading key never gets this: pass the
+   * strategy's `ctx` as `tradingKey` and it is switched off.
+   */
   autoPull?: boolean;
+  tradingKey?: TradingKey;
 }
 
 export interface SizingResult {
@@ -55,7 +68,7 @@ export async function sizeOrder(exchange: SomniaMarkets, req: SizingRequest): Pr
     account,
     isBid: side === "long",
     price,
-    autoPull: req.autoPull ?? false,
+    autoPull: req.tradingKey ? false : (req.autoPull ?? false),
   });
 
   if (!max.priceable) {
@@ -79,7 +92,7 @@ export async function sizeOrder(exchange: SomniaMarkets, req: SizingRequest): Pr
 }
 
 export interface PlaceArgs {
-  ctx: { exchange: SomniaMarkets; config: { dryRun: boolean } };
+  ctx: WriteCtx;
   market: PerpMarket;
   side: Side;
   price: bigint;
@@ -133,13 +146,10 @@ export async function placePerp(args: PlaceArgs): Promise<PlaceResult> {
 
   let res;
   try {
-    res = await ctx.exchange.trader.placePerpOrder({
-      pool: market.info.poolAddress,
-      isBid: side === "long",
-      price,
-      quantity,
-      orderType,
-    });
+    const order = { pool: market.info.poolAddress, isBid: side === "long", price, quantity, orderType };
+    // A trading key places FOR the account; the order, its margin and its fills
+    // are the account's. Same pool, same rules, same named errors.
+    res = ctx.tradingKey ? await placeFor(ctx.tradingKey, order) : await ctx.exchange.trader.placePerpOrder(order);
   } catch (err) {
     // A rejected order REVERTS rather than returning a status, so the only
     // signal is the named error. An IOC that crossed nothing is an ordinary
@@ -167,17 +177,17 @@ export async function placePerp(args: PlaceArgs): Promise<PlaceResult> {
 }
 
 /** Cancel one resting order, tolerating the race where it already went away. */
-export async function cancelQuietly(
-  ctx: { exchange: SomniaMarkets; config: { dryRun: boolean } },
-  market: PerpMarket,
-  orderId: bigint,
-): Promise<void> {
+export async function cancelQuietly(ctx: WriteCtx, market: PerpMarket, orderId: bigint): Promise<void> {
   if (ctx.config.dryRun) {
     console.log(`[dry-run] would cancel order ${orderId}`);
     return;
   }
   try {
-    await ctx.exchange.trader.cancelOrder({ pool: market.info.poolAddress, orderId });
+    if (ctx.tradingKey) {
+      await cancelFor(ctx.tradingKey, market.info.poolAddress, orderId);
+    } else {
+      await ctx.exchange.trader.cancelOrder({ pool: market.info.poolAddress, orderId });
+    }
   } catch (err) {
     // An order that filled or expired between the read and the cancel is not a
     // failure of the cancel; a cascade of these means the quote is too slow.
@@ -199,7 +209,7 @@ export async function positionIn(exchange: SomniaMarkets, market: PerpMarket) {
  * remainder and the next cycle tries to close a position that is already flat.
  */
 export async function closePosition(
-  ctx: { exchange: SomniaMarkets; config: { dryRun: boolean } },
+  ctx: WriteCtx,
   market: PerpMarket,
   account: `0x${string}`,
   opts: { fraction?: number; label?: string } = {},
