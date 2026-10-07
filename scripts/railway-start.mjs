@@ -28,6 +28,10 @@ const ALLOWED = new Set([
   "ec-laddering-bot",
   "ec-oracle-follow",
   "ec-settlement",
+  "perp-starter",
+  "perp-maker",
+  "perp-funding",
+  "perp-guard",
 ]);
 
 function normalizePrivateKey(raw) {
@@ -65,6 +69,13 @@ function main() {
   }
 
   process.env.PRIVATE_KEY = privateKey;
+
+  // Perps run on the Hideki testnet. The baked .env says NETWORK=testnet for the spot
+  // bots and would win once the strategy loads it, so a perp-* service that sets no
+  // NETWORK of its own is pointed at Hideki here.
+  if (strategy.startsWith("perp-") && !process.env.NETWORK?.trim()) {
+    process.env.NETWORK = "hideki";
+  }
 
   const network = process.env.NETWORK ?? "testnet";
   const dryRun = process.env.DRY_RUN ?? "true";

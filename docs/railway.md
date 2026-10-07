@@ -92,6 +92,7 @@ Canonical defaults for Railway live in [`.env.railway`](../.env.railway) (commit
 | `momentum` | `MOM_SYMBOL` |
 | `mean-reversion` | `MR_SYMBOL` |
 | `twap` | `TWAP_SYMBOL` |
+| `perp-*` | `PERP_SYMBOL` (see [perps.md](perps.md); a perp service with no `NETWORK` runs on Hideki) |
 
 Railway injects variables into the process; strategies read them via `@dreamdex-bot-kit/core` env loading (no `.env` file required in the container).
 
