@@ -58,3 +58,5 @@ Because it's EVM-equivalent, standard workflows apply:
 For trading on **DreamDEX** (Somnia's on-chain CLOB) specifically, use the
 companion **`dreamdex-bot`** skill in this repo — it covers the exchange contract
 surface, the DreamDEX-specific gotchas, and the bot toolkit.
+
+- **Infrastructure:** use the [Somnia Chain.Love Toolbox](https://somnia.chain.love/) to discover Web3 infrastructure providers for Somnia.
