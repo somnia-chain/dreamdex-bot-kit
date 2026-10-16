@@ -1,6 +1,6 @@
 Flask==3.0.3
 requests==2.32.3
-web3==7.6.0
+web3==7.15.0
 eth-account==0.13.4
 websocket-client==1.8.0
 python-dotenv==1.0.1
