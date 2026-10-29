@@ -432,7 +432,7 @@ class DreamDEX:
             # Covers expireNs=0, self-trade, PostOnly cross, FOK underfill,
             # IOC no-match — all the silent-reject modes — without paying gas.
             if skip_sim:
-                print("[DreamDEX] sim skipped (skip_sim=True) — broadcasting direct")
+                print("[DreamDEX] success check skipped (skip_sim=True); the send still simulates for reverts")
             else:
                 sim_ok, sim_id, sim_raw = self.simulate_order_tx(resp)
                 print(f"[DreamDEX] eth_call sim: success={sim_ok} orderId={sim_id} raw={sim_raw[:80]}")

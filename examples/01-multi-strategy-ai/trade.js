@@ -6,6 +6,7 @@
  * found in the LICENSE file at https://github.com/somnia-chain/dreamdex-bot-kit/blob/main/LICENSE
  */
 
+import { SELECTORS, sendPreparedTx } from './utils/prepared-tx-guard.js';
 import dotenv from 'dotenv';
 import path from 'path';
 import { fileURLToPath } from 'url';
@@ -78,11 +79,7 @@ async function placeOrder(side, price, amount) {
   }
 
   const p = prep.body;
-  const txHash = await walletClient.sendTransaction({
-    to: p.to, data: p.data,
-    value: p.value ? BigInt(p.value) : 0n,
-    gas: p.gasLimit ? BigInt(p.gasLimit) : 8000000n,
-  });
+  const txHash = await sendPreparedTx({ walletClient, publicClient, tx: p, allow: [SELECTORS.placeOrder], gas: p.gasLimit ? BigInt(p.gasLimit) : 8000000n });
   log('info', 'trade', `Tx: ${txHash}`);
   const receipt = await publicClient.waitForTransactionReceipt({ hash: txHash, timeout: 45000 });
   if (receipt.status !== 'success') {

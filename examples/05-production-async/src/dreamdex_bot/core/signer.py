@@ -48,6 +48,7 @@ from eth_account.signers.local import LocalAccount
 from web3 import AsyncWeb3, AsyncHTTPProvider
 from web3.exceptions import TimeExhausted, TransactionNotFound
 
+from dreamdex_bot.core.prepared_tx_guard import SELECTORS, check_prepared_tx, registry_pool_check
 from dreamdex_bot.utils.logger import get_logger
 
 
@@ -214,6 +215,14 @@ class NonceManager:
         self._stopped = True
 
 
+# What send_tx signs by default: the order, cancel and vault calls the dreamDEX API
+# prepares. An approval needs allow=(SELECTORS["approve"],) and the expected spender.
+PREPARED_CALLS = (
+    SELECTORS["placeOrder"], SELECTORS["cancelOrder"],
+    SELECTORS["deposit"], SELECTORS["depositNative"], SELECTORS["withdraw"],
+)
+
+
 class Signer:
     """Thin wrapper around web3.py async + NonceManager.
 
@@ -241,11 +250,29 @@ class Signer:
         value: int = 0,
         gas: int = 500_000,
         gas_price: int | None = None,
+        *,
+        allow: tuple[str, ...] = PREPARED_CALLS,
+        approve_spender: str | None = None,
     ) -> str:
         """Sign and broadcast a transaction. Returns the tx hash.
 
+        Every transaction here was prepared by the dreamDEX API, so it is checked
+        first: only an `allow`ed call on an official pool, no builder fee, an
+        approval only for `approve_spender`. Then it is simulated. A transaction
+        that fails either raises before a nonce is taken or anything is signed.
+
         Does NOT wait for confirmation — use wait_for_receipt() separately
         if you need that. This keeps the send path low-latency."""
+        checked = await check_prepared_tx(
+            {"to": to, "data": data, "value": value},
+            allow=allow, chain_id=self.chain_id,
+            is_known_pool=registry_pool_check(self.w3.eth.call, self.chain_id),
+            approve_spender=approve_spender,
+        )
+        data = checked["data"]
+        await self.w3.eth.call({
+            "from": self.account.address, "to": to, "data": data, "value": value, "gas": gas,
+        })
         if gas_price is None:
             gas_price = await self.w3.eth.gas_price
 
