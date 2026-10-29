@@ -6,6 +6,7 @@
  * found in the LICENSE file at https://github.com/somnia-chain/dreamdex-bot-kit/blob/main/LICENSE
  */
 
+import { SELECTORS, requireOfficialPool, sendPreparedTx } from './utils/prepared-tx-guard.js';
 import { initBrain, getAIDecision, getServer } from './brain/index.js';
 import { getAuthHeaders, clearAuth } from './utils/auth.js';
 import { updateCircuitBreakerState, validateTrade } from './executor/riskManager.js';
@@ -91,7 +92,7 @@ async function fetchMarketInfo() {
   if (res.status !== 200) throw new Error('Failed to fetch markets');
   const market = (res.body.markets || []).find(m => m.symbol === PAIR);
   if (!market) throw new Error(`Market ${PAIR} not found`);
-  poolAddress = market.contract;
+  poolAddress = await requireOfficialPool(publicClient, market.contract);
   baseToken = market.base;
   quoteToken = market.quote;
   const currRes = await httpRequest('GET', '/v0/currencies');
@@ -164,10 +165,7 @@ async function placeWalletLimitOrder(side, price, amount) {
     return null;
   }
   const p = prep.body;
-  const txHash = await walletClient.sendTransaction({
-    to: p.to, data: p.data, value: p.value ? BigInt(p.value) : 0n,
-    gas: p.gasLimit ? BigInt(p.gasLimit) : 8000000n,
-  });
+  const txHash = await sendPreparedTx({ walletClient, publicClient, tx: p, allow: [SELECTORS.placeOrder], gas: p.gasLimit ? BigInt(p.gasLimit) : 8000000n });
   const receipt = await publicClient.waitForTransactionReceipt({ hash: txHash, timeout: 45000 });
   if (receipt.status !== 'success') {
     log('error', 'trade', 'Tx reverted');

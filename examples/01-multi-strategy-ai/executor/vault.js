@@ -6,6 +6,7 @@
  * found in the LICENSE file at https://github.com/somnia-chain/dreamdex-bot-kit/blob/main/LICENSE
  */
 
+import { SELECTORS, requireOfficialPool, sendPreparedTx } from '../utils/prepared-tx-guard.js';
 import { parseUnits, formatUnits, formatEther } from 'viem';
 import {
   publicClient,
@@ -52,7 +53,7 @@ export async function fetchMarketInfo() {
   const market = markets.find((m) => m.symbol === CONFIG.MARKET_SYMBOL);
   if (!market) throw new Error(`Market ${CONFIG.MARKET_SYMBOL} not found`);
 
-  cachedPoolAddress = market.contract;
+  cachedPoolAddress = await requireOfficialPool(publicClient, market.contract);
   cachedBaseToken = market.base;
   cachedQuoteToken = market.quote;
 
@@ -174,12 +175,7 @@ export async function depositUsdsoOnce() {
   let depositHash;
   if (depositPayloadRes.status === 200 && depositPayloadRes.body?.to) {
     const p = depositPayloadRes.body;
-    depositHash = await walletClient.sendTransaction({
-      to: p.to,
-      data: p.data,
-      value: p.value ? BigInt(p.value) : 0n,
-      gas: p.gasLimit ? BigInt(p.gasLimit) : 5000000n,
-    });
+    depositHash = await sendPreparedTx({ walletClient, publicClient, tx: p, allow: [SELECTORS.deposit, SELECTORS.depositNative], gas: p.gasLimit ? BigInt(p.gasLimit) : 5000000n });
   } else {
     depositHash = await walletClient.writeContract({
       address: cachedPoolAddress,

@@ -31,6 +31,7 @@ from decimal import Decimal, ROUND_DOWN
 import httpx
 
 from dreamdex_bot.config import MarketSymbol, Settings
+from dreamdex_bot.core.prepared_tx_guard import SELECTORS
 from dreamdex_bot.core.rest_client import RestClient
 from dreamdex_bot.core.signer import Signer
 
@@ -150,6 +151,7 @@ async def main() -> None:
                     data=approve_prep["data"],
                     value=value,
                     gas=gas,
+                    allow=(SELECTORS["approve"],), approve_spender=settings.pool_address(MarketSymbol.WBTC_USDSO),
                 )
                 print(f"approval_tx={approval_tx}")
                 approval_receipt = await signer.wait_for_receipt(approval_tx, timeout=60)

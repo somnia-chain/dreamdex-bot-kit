@@ -6,6 +6,12 @@
  * found in the LICENSE file at https://github.com/somnia-chain/dreamdex-bot-kit/blob/main/LICENSE
  */
 
+import { SELECTORS, checkPreparedTx, registryPoolCheck, requireOfficialPool, type EthCall } from "./prepared-tx-guard.js";
+
+// The calls this bot signs from the API: orders, cancels and vault moves. Anything
+// else the API sends back (a transfer, an approval, a call to some other function) is refused.
+const PREPARED_CALLS = [SELECTORS.placeOrder, SELECTORS.cancelOrder, SELECTORS.deposit, SELECTORS.depositNative, SELECTORS.withdraw];
+
 // Connection layer. Strategy/risk depend ONLY on the ExchangeClient interface,
 // so the real dreamDEX client can be wired in on launch day without touching the logic.
 // MockClient (multi-pair) lets you run the bot right now on simulated prices.
@@ -106,12 +112,19 @@ export class DreamDexClient implements ExchangeClient {
     }
     return r.json();
   }
+  private ethCall: EthCall = (tx) => this.provider.call(tx);
+  private async rpcChainId(): Promise<number> { return Number((await this.provider.getNetwork()).chainId); }
+
   private async send(tx: any) {
     // SINGLE safeguard: an empty/broken tx (data "" or "0x") = a guaranteed revert + burned gas
     // (≈1.08M gas each). Happens when the API returns "nothing to do" on cancel/withdraw with empty data.
     const okData = tx?.data && tx.data !== "0x" && tx.data !== "";
     if (!tx?.to || !okData) { return ""; }
-    const s: any = await withT(this.signer.sendTransaction({ to: tx.to, data: tx.data, value: tx.value ?? 0 }), 30000, "sendTx");
+    // Sign only an expected order or vault call on an official pool, and only once it simulates without reverting.
+    const chainId = await this.rpcChainId();
+    const checked = await checkPreparedTx(tx, { allow: PREPARED_CALLS, chainId, isKnownPool: registryPoolCheck(this.ethCall, chainId) });
+    await this.provider.call({ from: await this.signer.getAddress(), ...checked });
+    const s: any = await withT(this.signer.sendTransaction(checked), 30000, "sendTx");
     await withT(s.wait(), 60000, "txWait");
     this.lastTxMs = Date.now();                              // successful tx → reset the idle watchdog
     return s.hash;   // the tx can "hang" waiting to be mined → timeout
@@ -338,6 +351,9 @@ export class DreamDexClient implements ExchangeClient {
   private async ensureApproved(sym: string): Promise<void> {
     if (this.approved[sym]) return;
     const m = this.markets[sym]; if (!m) { this.approved[sym] = true; return; }
+    // The pool address came from the API. Approve only one the chain's registry knows,
+    // so a made-up address never gets an allowance.
+    await requireOfficialPool(this.ethCall, await this.rpcChainId(), m.contract);
     const ethers = this.ethers;
     const abi = ["function approve(address,uint256) returns (bool)"];
     for (const token of [m.quote, m.base]) {                 // quote(USDso) for buying, base for selling

@@ -6,6 +6,7 @@
  * found in the LICENSE file at https://github.com/somnia-chain/dreamdex-bot-kit/blob/main/LICENSE
  */
 
+import { SELECTORS, sendPreparedTx } from '../utils/prepared-tx-guard.js';
 import { parseUnits, formatUnits } from 'viem';
 import { walletClient, account, publicClient, safeEstimateGas } from './viemClient.js';
 import { getPoolAddress, getBaseToken, getQuoteToken, getQuoteDecimals } from './vault.js';
@@ -42,12 +43,7 @@ export async function placeVaultLimitOrder(authHeaders, { side, price, amount })
   }
 
   const p = prepRes.body;
-  const txHash = await walletClient.sendTransaction({
-    to: p.to,
-    data: p.data,
-    value: p.value ? BigInt(p.value) : 0n,
-    gas: p.gasLimit ? BigInt(p.gasLimit) : 5000000n,
-  });
+  const txHash = await sendPreparedTx({ walletClient, publicClient, tx: p, allow: [SELECTORS.placeOrder], gas: p.gasLimit ? BigInt(p.gasLimit) : 5000000n });
 
   log('info', 'orders', `Order tx sent: ${txHash}`);
   const receipt = await publicClient.waitForTransactionReceipt({ hash: txHash, timeout: 45000 });
@@ -103,12 +99,7 @@ export async function placeMarketOrder(authHeaders, { side, amount }) {
   }
 
   const p = prepRes.body;
-  const txHash = await walletClient.sendTransaction({
-    to: p.to,
-    data: p.data,
-    value: p.value ? BigInt(p.value) : 0n,
-    gas: p.gasLimit ? BigInt(p.gasLimit) : 8000000n,
-  });
+  const txHash = await sendPreparedTx({ walletClient, publicClient, tx: p, allow: [SELECTORS.placeOrder], gas: p.gasLimit ? BigInt(p.gasLimit) : 8000000n });
 
   log('info', 'orders', `Market order tx: ${txHash}`);
   const receipt = await publicClient.waitForTransactionReceipt({ hash: txHash, timeout: 45000 });
@@ -145,12 +136,7 @@ export async function cancelOrderById(authHeaders, orderId) {
   }
 
   const cp = cancelRes.body;
-  const txHash = await walletClient.sendTransaction({
-    to: cp.to,
-    data: cp.data,
-    value: cp.value ? BigInt(cp.value) : 0n,
-    gas: cp.gasLimit ? BigInt(cp.gasLimit) : 5000000n,
-  });
+  const txHash = await sendPreparedTx({ walletClient, publicClient, tx: cp, allow: [SELECTORS.cancelOrder], gas: cp.gasLimit ? BigInt(cp.gasLimit) : 5000000n });
 
   const receipt = await publicClient.waitForTransactionReceipt({ hash: txHash, timeout: 45000 });
 

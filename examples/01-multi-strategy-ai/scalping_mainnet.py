@@ -16,6 +16,8 @@ from web3 import Web3
 from eth_account import Account
 from eth_account.messages import encode_defunct
 
+from prepared_tx_guard import SELECTORS, check_prepared_tx, registry_pool_check, require_official_pool
+
 load_dotenv(Path(__file__).parent / ".env")
 
 # ====== Config ======
@@ -45,6 +47,11 @@ RETRY_DELAY_MS = 2.0
 w3 = Web3(Web3.HTTPProvider(RPC_URL))
 account = Account.from_key(PRIVATE_KEY)
 address = account.address
+
+
+def eth_call(tx):
+    return w3.eth.call({"to": Web3.to_checksum_address(tx["to"]), "data": tx["data"]})
+
 
 LOG_PLACED_TOPIC = "0xd90f62f61ee2f606b132cfdfd883ddd079228b6fd6bffd9d7cf848daf824639d"
 
@@ -137,7 +144,7 @@ def fetch_market_info():
     market = next((m for m in markets if m["symbol"] == PAIR), None)
     if not market:
         raise Exception(f"Market {PAIR} not found")
-    POOL_ADDRESS = market["contract"]
+    POOL_ADDRESS = require_official_pool(eth_call, CHAIN_ID, market["contract"])  # approvals go to this address
     BASE_TOKEN = market["base"]
     QUOTE_TOKEN = market["quote"]
     log("info", "vault", f"Pool: {POOL_ADDRESS}")
@@ -162,6 +169,11 @@ def send_tx(tx_data):
         data_hex = "0x" + data_hex
     value = tx_data["value"]
     gas_limit = tx_data["gas"]
+    # Sign only an order on an official pool with no builder fee,
+    # and only once it simulates without reverting.
+    checked = check_prepared_tx({"to": to_addr, "data": data_hex, "value": value}, allow=(SELECTORS["placeOrder"],),
+                                chain_id=CHAIN_ID, is_known_pool=registry_pool_check(eth_call, CHAIN_ID))
+    w3.eth.call({"from": address, "to": to_addr, "data": checked["data"], "value": checked["value"], "gas": gas_limit})
 
     nonce = w3.eth.get_transaction_count(address)
     gas_price = w3.eth.gas_price

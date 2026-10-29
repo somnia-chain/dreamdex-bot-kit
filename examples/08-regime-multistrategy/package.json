@@ -6,7 +6,8 @@
   "scripts": {
     "start": "tsx src/bot.ts",
     "dry": "cross-env DRY_RUN=1 tsx src/bot.ts",
-    "test": "tsx src/regime.test.ts"
+    "test": "tsx src/regime.test.ts",
+    "test:guard": "node --test 'test/*.test.mjs'"
   },
   "dependencies": {
     "dotenv": "^16.4.5",

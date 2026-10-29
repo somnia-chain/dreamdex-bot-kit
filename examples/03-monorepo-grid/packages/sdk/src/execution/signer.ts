@@ -8,6 +8,13 @@
 
 import { Contract, JsonRpcProvider, MaxUint256, Wallet, parseUnits } from 'ethers';
 import type { UnsignedTransactionPayload } from '../dex/types.js';
+import {
+  SELECTORS,
+  checkPreparedTx,
+  registryPoolCheck,
+  requireOfficialPool,
+  type EthCall,
+} from './prepared-tx-guard.js';
 
 const ERC20_ABI = [
   'function decimals() view returns (uint8)',
@@ -25,6 +32,8 @@ export class TransactionExecutor {
     this.signer = new Wallet(privateKey, provider);
     this.expectedChainId = expectedChainId;
   }
+
+  private readonly ethCall: EthCall = (tx) => this.signer.provider!.call(tx);
 
   async sendApprovalIfNeeded(
     approval: UnsignedTransactionPayload['approval'],
@@ -86,6 +95,9 @@ export class TransactionExecutor {
     spender: string,
     amount: bigint,
   ): Promise<string> {
+    // Every spender here is a pool address that came from the API. Approve only
+    // one the chain's registry knows, so a made-up address never gets an allowance.
+    await requireOfficialPool(this.ethCall, this.expectedChainId, spender);
     const erc20 = new Contract(token, ERC20_ABI, this.signer);
     const tx = await erc20.approve(spender, amount);
     const receipt = await tx.wait();
@@ -126,6 +138,7 @@ export class TransactionExecutor {
 
   async sendPreparedTransaction(
     payload: UnsignedTransactionPayload,
+    allow: readonly string[] = [SELECTORS.placeOrder],
   ): Promise<string> {
     await this.assertConnectedChain();
 
@@ -136,10 +149,18 @@ export class TransactionExecutor {
       );
     }
 
+    // Sign only an expected order call on an official pool, and only once it simulates without reverting.
+    const checked = await checkPreparedTx(payload, {
+      allow,
+      chainId: this.expectedChainId,
+      isKnownPool: registryPoolCheck(this.ethCall, this.expectedChainId),
+    });
+    await this.signer.provider!.call({ from: this.signer.address, ...checked });
+
     const tx = await this.signer.sendTransaction({
-      to: payload.to,
-      data: payload.data,
-      value: BigInt(payload.value),
+      to: checked.to,
+      data: checked.data,
+      value: checked.value,
       chainId: txChainId,
       gasLimit: payload.gasLimit ? BigInt(payload.gasLimit) : undefined,
       nonce: payload.nonce !== undefined ? Number(payload.nonce) : undefined,

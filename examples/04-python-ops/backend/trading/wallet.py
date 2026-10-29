@@ -23,7 +23,12 @@ import requests
 from eth_account import Account
 from eth_account.messages import encode_defunct
 from web3 import Web3
-from config import SOMNIA_RPC, CHAIN_ID, MY_ADDRESS, PRIVATE_KEY as _CONFIG_KEY
+from config import SOMNIA_RPC, CHAIN_ID, MY_ADDRESS, MARKETS, PRIVATE_KEY as _CONFIG_KEY
+from trading.prepared_tx_guard import SELECTORS, check_prepared_tx
+
+# The pools this bot trades, pinned in config. The only contracts a prepared
+# transaction may call.
+_PINNED_POOLS = {m["contract"].lower() for m in MARKETS.values() if m.get("contract")}
 
 
 class SomniaWallet:
@@ -77,11 +82,16 @@ class SomniaWallet:
         return {"gasPrice": self.w3.eth.gas_price}
 
     # ── Send a pre-built unsigned tx dict returned by DreamDEX API ────
-    def send_unsigned_tx(self, tx: dict) -> str:
+    def send_unsigned_tx(self, tx: dict, allow=(SELECTORS["placeOrder"], SELECTORS["cancelOrder"])) -> str:
         """
         Sign and broadcast a tx dict like:
           { "to": "0x...", "data": "0x...", "value": "0", "gasLimit": "250000" }
         Returns tx hash string.
+
+        Only an order or cancel call (`allow`) on a pinned pool is signed, an
+        order may name no builder fee, and the call is simulated first: a
+        transaction that fails a check or would revert raises before anything
+        is signed.
 
         R2: auto-recovers from `nonce too low` once by re-syncing from chain.
         That happens when another process (docker exec, manual REPL) consumed
@@ -89,12 +99,17 @@ class SomniaWallet:
         """
         api_gas = int(tx.get("gasLimit", 300_000))
         gas = max(3_000_000, int(api_gas * 2))
+        checked = check_prepared_tx(tx, allow=allow, chain_id=self.chain_id,
+                                    is_known_pool=lambda a: a.lower() in _PINNED_POOLS)
+        to = Web3.to_checksum_address(checked["to"])
+        self.w3.eth.call({"from": Web3.to_checksum_address(self.address), "to": to,
+                          "data": checked["data"], "value": checked["value"], "gas": gas})
 
         def _build_and_send(n: int) -> str:
             tx_fields = {
-                "to":      Web3.to_checksum_address(tx["to"]),
-                "data":    tx.get("data", "0x"),
-                "value":   int(tx.get("value", 0)),
+                "to":      to,
+                "data":    checked["data"],
+                "value":   checked["value"],
                 "gas":     gas,
                 "nonce":   n,
                 "chainId": self.chain_id,

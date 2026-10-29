@@ -21,7 +21,16 @@ from eth_account.messages import encode_defunct
 from web3 import Web3
 from web3.exceptions import ContractCustomError
 
+from prepared_tx_guard import SELECTORS, check_prepared_tx, registry_pool_check, require_official_pool
+
 logger = logging.getLogger(__name__)
+
+# The calls this bot signs from the API: orders, cancels, reduces and vault deposits.
+# Anything else the API sends back (a transfer, a call to some other function) is refused.
+PREPARED_CALLS = (
+    SELECTORS["placeOrder"], SELECTORS["cancelOrder"], SELECTORS["reduceOrders"],
+    SELECTORS["deposit"], SELECTORS["depositNative"],
+)
 
 
 NATIVE_TOKEN = Web3.to_checksum_address("0x28f34DeFd2b4CB48d9eE6d89f2Be4Bc601694c00")
@@ -473,7 +482,6 @@ class LiveDreamDexBot:
         tx["to"] = Web3.to_checksum_address(prepared["to"])
         tx["data"] = prepared["data"]
         tx["value"] = int(prepared.get("value", "0"))
-        tx["chainId"] = int(prepared["chainId"])
         if gas_override is not None:
             # Bypass the (often-reverting) estimate; use an explicit high budget.
             tx["gas"] = int(gas_override)
@@ -504,13 +512,30 @@ class LiveDreamDexBot:
             logger.warning(f"Prepared tx simulation failed: {exc}")
             return False, 0
 
+    def _eth_call(self, call: Dict[str, Any]) -> bytes:
+        return self.web3.eth.call({"to": Web3.to_checksum_address(call["to"]), "data": call["data"]})
+
+    def _official_pool(self, address: Optional[str]) -> str:
+        # Pool addresses come from the API. Approve only one the chain's registry knows.
+        chain_id = int(self.cfg.get("chain_id", 5031))
+        return Web3.to_checksum_address(require_official_pool(self._eth_call, chain_id, address))
+
     def _broadcast_prepared_tx(
-        self, prepared: Dict[str, Any], is_bid: Optional[bool] = None, gas_override: Optional[int] = None
+        self, prepared: Dict[str, Any], is_bid: Optional[bool] = None, gas_override: Optional[int] = None,
+        allow: Tuple[str, ...] = PREPARED_CALLS, approve_spender: Optional[str] = None,
     ) -> str:
-        tx = self._prepared_tx_to_web3_tx(prepared, is_bid=is_bid, gas_override=gas_override)
+        # Sign only an expected call on an official pool, for this chain, with no builder fee.
+        chain_id = int(self.cfg.get("chain_id", 5031))
+        checked = check_prepared_tx(
+            prepared, allow=allow, chain_id=chain_id,
+            is_known_pool=registry_pool_check(self._eth_call, chain_id), approve_spender=approve_spender,
+        )
+        tx = self._prepared_tx_to_web3_tx({**prepared, **checked}, is_bid=is_bid, gas_override=gas_override)
         if self.dry_run:
             logger.info(f"DRY RUN: would broadcast tx to={tx['to']} gas={tx.get('gas')}")
             return "0x" + "0" * 64
+        # Simulate first: a call that would revert raises here and is never signed.
+        self.web3.eth.call({"from": self.address, "to": tx["to"], "data": tx["data"], "value": tx["value"], "gas": tx["gas"]})
         tx_hash = self._sign_and_send(tx)
         return tx_hash
 
@@ -707,7 +732,7 @@ class LiveDreamDexBot:
                 return market
         return None
 
-    def _approve_via_api(self, token: str, amount_needed: int) -> Optional[str]:
+    def _approve_via_api(self, token: str, amount_needed: int, spender: str) -> Optional[str]:
         decimals = self._token_decimals(token)
         if amount_needed >= 10 ** (decimals + 12):
             amount_human = "1000000"
@@ -725,7 +750,7 @@ class LiveDreamDexBot:
         )
         if prepared is None:
             return None
-        tx_hash = self._broadcast_prepared_tx(prepared)
+        tx_hash = self._broadcast_prepared_tx(prepared, allow=(SELECTORS["approve"],), approve_spender=spender)
         if self.dry_run:
             return tx_hash
         receipt = self.web3.eth.wait_for_transaction_receipt(tx_hash)
@@ -737,7 +762,7 @@ class LiveDreamDexBot:
         if token == self.native_token:
             return None
 
-        spender = Web3.to_checksum_address(pool or self.market.pool)
+        spender = self._official_pool(pool or self.market.pool)
         contract = self.web3.eth.contract(address=token, abi=ERC20_ABI)
         allowance = int(contract.functions.allowance(self.address, spender).call())
         if allowance >= amount_needed:
@@ -766,7 +791,7 @@ class LiveDreamDexBot:
         except Exception as exc:
             logger.warning(f"Direct approve failed for {token}: {exc}")
 
-        return self._approve_via_api(token, amount_needed)
+        return self._approve_via_api(token, amount_needed, spender)
 
     def _ensure_order_allowance(self, is_bid: bool, quantity_raw: int, price_raw: int) -> Optional[str]:
         if self.dry_run:
@@ -900,7 +925,7 @@ class LiveDreamDexBot:
                 market.quote_decimals if token == market.quote else market.base_decimals
             )))
             if amount_raw > 0:
-                self._approve_via_api(token, amount_raw)
+                self._approve_via_api(token, amount_raw, self._official_pool(market.pool))
         except Exception as exc:
             logger.warning(f"Vault approve ({currency_code}): {exc}")
         tx = self._vault_deposit(currency_code, amount_human, sym)

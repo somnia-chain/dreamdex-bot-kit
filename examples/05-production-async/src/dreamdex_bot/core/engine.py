@@ -31,6 +31,7 @@ from web3 import Web3
 
 from dreamdex_bot.config import MARKETS, MarketSymbol, Settings
 from dreamdex_bot.core.inventory import InventoryTracker
+from dreamdex_bot.core.prepared_tx_guard import SELECTORS
 from dreamdex_bot.core.rest_client import RestClient
 from dreamdex_bot.core.risk_manager import RiskManager
 from dreamdex_bot.core.signer import Signer
@@ -1557,6 +1558,7 @@ class Engine:
             to=prep["to"], data=prep["data"],
             value=value,
             gas=gas,
+            allow=(SELECTORS["approve"],), approve_spender=self.settings.pool_address(market),
         )
         log.info("engine.approval_submitted", market=market.value, currency=currency, tx_hash=tx_hash)
         self._report(

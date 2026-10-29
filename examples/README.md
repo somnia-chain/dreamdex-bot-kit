@@ -21,6 +21,17 @@ modern, runnable versions of these ideas, use [`../strategies`](../strategies) a
 The bots that used the **HTTP-prepare** path (the server builds the calldata) were naturally
 insulated from that break; the ones that call the contract directly are the ones that need the fix.
 
+### Check a prepared transaction before signing it
+
+On the HTTP-prepare path the API returns `to`, `data` and `value` and the bot signs them. The
+examples that use it (01, 03, 04, 05, 06, 08) check each one first: it must call an order or vault
+function that bot expects on an official pool (pinned in config or confirmed by the on-chain
+`SpotPoolRegistry`), carry native coin only for a native-coin order or deposit, name no builder fee
+on an order, and simulate without reverting. Pool addresses read from the API are confirmed against
+the registry before any approval. If you adapt one of these bots, keep that check
+(`prepared-tx-guard` / `prepared_tx_guard`) in its signing path. Each guard has a dependency-free
+test.
+
 ## The bots
 
 | Folder | Lang | Strategy & standout technique |
